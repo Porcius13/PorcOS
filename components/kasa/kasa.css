@@ -1,0 +1,275 @@
+.kasa-scope {
+  /* Default Dark Mode (Obsidian Ledger) */
+  --kasa-bg: #000000;
+  --kasa-fg: 210 40% 98%;
+  --kasa-card: rgba(18, 18, 18, 0.6);
+  --kasa-card-border: rgba(255, 255, 255, 0.08);
+  --kasa-glass-bg: rgba(255, 255, 255, 0.05);
+  --kasa-glass-border: rgba(255, 255, 255, 0.1);
+  --kasa-muted: 215 20% 65%;
+  --kasa-muted-bg: rgba(255, 255, 255, 0.03);
+  --kasa-accent: #ffd21f;
+  --kasa-shadow: rgba(0, 0, 0, 0.5);
+
+  --background: 222 47% 2%;
+  --foreground: var(--kasa-fg);
+
+  --card: 222 47% 4%;
+  --card-foreground: 210 40% 98%;
+
+  --muted: 217 33% 10%;
+  --muted-foreground: var(--kasa-muted);
+
+  --accent: var(--kasa-accent); /* #ffd21f (Yellow) */
+  --accent-foreground: 222 47% 2%;
+
+  --border: 217 33% 15%;
+  --input: 217 33% 15%;
+  --ring: var(--kasa-accent);
+
+  --radius: 2.5rem;
+
+  /* Glass System - Dark Obsidian */
+  --glass-bg: var(--kasa-glass-bg);
+  --glass-border: var(--kasa-glass-border);
+  --glass-shadow: var(--kasa-shadow);
+
+  /* Obsidian Colors */
+  --obsidian-yellow: var(--kasa-accent);
+  --obsidian-dim-yellow: rgba(255, 210, 31, 0.15);
+  --obsidian-danger: #f43f5e;
+  --obsidian-indigo: #4f46e5;
+  --obsidian-zinc: #18181b;
+
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  background-color: var(--kasa-bg);
+  color: hsl(var(--foreground));
+  font-family: 'Outfit', 'Inter', system-ui, sans-serif;
+  transition: background-color 0.5s ease, color 0.5s ease;
+}
+
+/* Light Mode Overrides (Ivory Ledger) */
+:root.light .kasa-scope {
+  --kasa-bg: #f8fafc;
+  --kasa-fg: 222 47% 11%;
+  --kasa-card: rgba(255, 255, 255, 0.8);
+  --kasa-card-border: rgba(0, 0, 0, 0.05);
+  --kasa-glass-bg: rgba(255, 255, 255, 0.7);
+  --kasa-glass-border: rgba(0, 0, 0, 0.08);
+  --kasa-muted: 215 16% 47%;
+  --kasa-muted-bg: rgba(0, 0, 0, 0.02);
+  --kasa-accent: #eab308; /* A slightly darker yellow for contrast */
+  --kasa-shadow: rgba(0, 0, 0, 0.05);
+}
+
+.kasa-scope .glass {
+    background: var(--glass-bg);
+    backdrop-filter: blur(40px);
+    -webkit-backdrop-filter: blur(40px);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius);
+    box-shadow: 0 12px 48px var(--glass-shadow);
+  }
+
+  .obsidian-card {
+  background: var(--kasa-card);
+  backdrop-filter: blur(24px);
+  border: 1px solid var(--kasa-card-border);
+  border-radius: 2.5rem;
+  padding: 2.5rem;
+  transition: all 0.3s ease;
+}
+
+  /* Strict Mobile Frame */
+  .main-container {
+    width: 100%;
+    max-width: 1400px;
+    margin: 0 auto;
+    position: relative;
+    min-height: 100vh;
+    background: transparent;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 40px;
+  }
+
+  .premium-card {
+    background: var(--glass-bg);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid var(--glass-border);
+    border-radius: 32px;
+    box-shadow: 0 12px 40px var(--glass-shadow);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .glass-card-premium {
+    background: var(--kasa-glass-bg);
+    backdrop-filter: blur(32px);
+    -webkit-backdrop-filter: blur(32px);
+    border: 1px solid var(--kasa-glass-border);
+    box-shadow: 0 8px 32px 0 var(--kasa-shadow);
+    transition: all 0.5s ease;
+  }
+
+  .glass-card-premium:hover {
+    border-color: rgba(255, 210, 31, 0.3);
+    background: var(--kasa-card);
+    transform: translateY(-4px);
+    box-shadow: 0 12px 48px 0 var(--kasa-shadow);
+  }
+
+  .data-gradient-yellow {
+    background: linear-gradient(90deg, #ffd21f 0%, #ca8a04 100%);
+  }
+
+  .chart-tooltip-premium {
+    background: rgba(18, 18, 18, 0.8) !important;
+    backdrop-filter: blur(12px) !important;
+    border: 1px solid rgba(255,255,255,0.1) !important;
+    border-radius: 12px !important;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4) !important;
+  }
+
+/* Scrollbar Hide */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Animations */
+@keyframes float {
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* Aurora Buluts */
+.aurora-bg {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  overflow: hidden;
+}
+
+.dark .aurora-bg {
+  background: radial-gradient(circle at 50% 120%, #1a1a2e, #000000);
+}
+
+.light .aurora-bg {
+  background: radial-gradient(circle at 50% 120%, #e0e7ff, #f8fafc);
+}
+
+.blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.4;
+  animation: breathe 10s infinite alternate ease-in-out;
+}
+
+.blob-1 {
+  width: 300px;
+  height: 300px;
+  background: var(--accent-indigo);
+  top: -100px;
+  left: -50px;
+}
+
+.blob-2 {
+  width: 350px;
+  height: 350px;
+  background: var(--accent-violet);
+  bottom: 20%;
+  right: -100px;
+  animation-delay: -5s;
+}
+
+.blob-3 {
+  width: 200px;
+  height: 200px;
+  background: #3b0764;
+  top: 40%;
+  left: 20%;
+  opacity: 0.2;
+}
+
+@keyframes breathe {
+  0% {
+    transform: scale(1) translate(0, 0);
+    opacity: 0.4;
+  }
+
+  100% {
+    transform: scale(1.1) translate(20px, -20px);
+    opacity: 0.6;
+  }
+}
+
+/* AI Pulse */
+@keyframes ai-pulse-ring {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.5;
+  }
+
+  100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+.ai-pulse {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--accent-violet);
+  animation: ai-pulse-ring 2s infinite;
+}
+
+/* Navigation Pill */
+.nav-pill-container {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 90%;
+  max-width: 432px;
+  /* 480 - 48 */
+  z-index: 100;
+}
+
+/* Privacy & Stealth Mode */
+.privacy-blur {
+  transition: filter 0.3s ease;
+}
+
+.stealth-mode .privacy-blur {
+  filter: blur(12px) !important;
+  pointer-events: none;
+  user-select: none;
+}
+
+.stealth-mode .privacy-blur:hover {
+  filter: blur(0px) !important;
+}

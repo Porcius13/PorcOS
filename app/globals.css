@@ -1,0 +1,196 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f8f9fb;
+  --foreground: #191c1e;
+  --card: #eceef0;
+  --card-foreground: #191c1e;
+  --popover: #ffffff;
+  --popover-foreground: #191c1e;
+  --primary: #ffd21f;
+  --primary-foreground: #1d1b00;
+  --secondary: #eceef0;
+  --secondary-foreground: #414754;
+  --muted: #f2f4f6;
+  --muted-foreground: #717786;
+  --accent: #fed65a;
+  --accent-foreground: #231a00;
+  --border: #c1c6d7;
+  --input: #e0e3e5;
+  --ring: #ffd21f;
+  --radius: 0.75rem;
+  --radial-gradient: radial-gradient(circle at 50% 50%, #fefcff 0%, #f8f9fb 100%);
+
+  /* Med-Terminal Light - Paper Terminal Aesthetic */
+  --terminal-bg: #f5f4ef;
+  --terminal-surface: #ffffff;
+  --terminal-surface-high: #e9e7e0;
+  --terminal-accent: #c0000a;
+  --terminal-accent-muted: #e57373;
+  --terminal-dim: #7d7a74;
+  --terminal-error: #d32f2f;
+}
+
+.dark {
+  --background: #09090b;
+  --foreground: #fafafa;
+  --card: #18181b;
+  --card-foreground: #fafafa;
+  --popover: #09090b;
+  --popover-foreground: #fafafa;
+  --primary: #ffd21f;
+  --primary-foreground: #000000;
+  --secondary: #27272a;
+  --secondary-foreground: #fafafa;
+  --muted: #27272a;
+  --muted-foreground: #a1a1aa;
+  --accent: #27272a;
+  --accent-foreground: #fafafa;
+  --border: #27272a;
+  --input: #27272a;
+  --ring: #ffd21f;
+  --radial-gradient: radial-gradient(circle at 50% 50%, #1a1a1a 0%, #0a0a0a 100%);
+
+  /* Med-Terminal Dark */
+  --terminal-bg: #131314;
+  --terminal-surface: #1f1f20;
+  --terminal-surface-high: #2a2a2b;
+  --terminal-accent: #ffb4aa;
+  --terminal-accent-muted: #e7bdb7;
+  --terminal-dim: #ad8883;
+  --terminal-error: #ff5545;
+}
+
+@theme {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* Med Terminal Colors */
+  --color-terminal-bg: var(--terminal-bg);
+  --color-terminal-surface: var(--terminal-surface);
+  --color-terminal-surface-high: var(--terminal-surface-high);
+  --color-terminal-accent: var(--terminal-accent);
+  --color-terminal-accent-muted: var(--terminal-accent-muted);
+  --color-terminal-dim: var(--terminal-dim);
+  --color-terminal-error: var(--terminal-error);
+}
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+.glass-panel-light {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(193, 198, 215, 0.3);
+}
+
+.radial-bg {
+  background: var(--radial-gradient);
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Rich Text Content Styling */
+.rich-content-display, .rich-content-editor {
+  line-height: 1.8;
+  word-wrap: break-word;
+}
+
+.rich-content-display h1, .rich-content-editor h1 { font-size: 1.8rem; font-weight: 900; margin-top: 1.5rem; margin-bottom: 0.5rem; color: var(--terminal-accent); text-transform: uppercase; letter-spacing: -0.02em; }
+.rich-content-display h2, .rich-content-editor h2 { font-size: 1.4rem; font-weight: 800; margin-top: 1.25rem; margin-bottom: 0.5rem; color: var(--terminal-accent); text-transform: uppercase; border-left: 3px solid var(--terminal-accent); padding-left: 0.75rem; }
+.rich-content-display h3, .rich-content-editor h3 { font-size: 1.1rem; font-weight: 800; margin-top: 1rem; margin-bottom: 0.5rem; color: var(--foreground); text-transform: uppercase; letter-spacing: 0.05em; }
+
+.rich-content-display ul, .rich-content-editor ul { list-style-type: none; padding-left: 0.5rem; margin-bottom: 1rem; }
+.rich-content-display ul li, .rich-content-editor ul li { position: relative; padding-left: 1.5rem; margin-bottom: 0.4rem; }
+.rich-content-display ul li::before, .rich-content-editor ul li::before { content: "»"; position: absolute; left: 0; color: var(--terminal-accent); font-weight: bold; }
+
+.rich-content-display ol, .rich-content-editor ol { list-style-type: decimal; padding-left: 1.5rem; margin-bottom: 1rem; }
+.rich-content-display li, .rich-content-editor li { margin-bottom: 0.25rem; }
+
+.rich-content-display p, .rich-content-editor p { margin-bottom: 0.75rem; }
+
+.rich-content-display a, .rich-content-editor a { color: var(--terminal-accent); text-decoration: underline; text-underline-offset: 4px; font-weight: bold; }
+
+.rich-content-display b, .rich-content-display strong, .rich-content-editor b, .rich-content-editor strong { 
+  font-weight: 800; 
+  color: var(--foreground);
+}
+
+/* Ensure contenteditable doesn't have weird spacing */
+.rich-content-editor:focus {
+  outline: none;
+}
+
+[contenteditable="true"]:empty:before {
+  content: attr(placeholder);
+  color: var(--terminal-dim);
+  opacity: 0.3;
+  font-style: italic;
+  pointer-events: none;
+}
+
+/* Yaşama Dair Research Hub Styles */
+.glass-nav {
+  @apply bg-white/70 dark:bg-black/70 backdrop-blur-xl border-b border-neutral-200/20 dark:border-neutral-800/20;
+}
+
+.amber-glow:hover {
+  box-shadow: 0 0 40px -10px rgba(255, 210, 31, 0.2);
+}
+
+.tonal-transition {
+  background: var(--background);
+  background-image: radial-gradient(at top left, var(--primary), transparent 400px);
+}
+
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+@layer base {
+  .font-headline {
+    font-family: 'Manrope', sans-serif;
+  }
+  .font-body {
+    font-family: 'Inter', sans-serif;
+  }
+  .font-label {
+    font-family: 'Inter', sans-serif;
+  }
+
+  .paper-texture {
+    background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuB7_r46h9n7fx7H1AtCNAga4yMCm3gm9ZyN2Wi3xM2mEmav4C4g0krRUtCEFkbuz6g0vEvWyUAJXxAASoiSUFrzHM90Ix6dKrjGvr40ab7_vjuex7MYE6yytovf1D71jAw4-ygte7MvyDbJ0oQg3kUyaIEHmdRui_yJh_QWvXt-xlgI0fSAGZ1dR5wmc5_M9uvLoxTjpX4cl03JMGD8AJb9jObz6Epkktg7QFIUXSIaF05crQa10l64uIuI69l-PwzYZT5pNJrmlN91");
+  }
+
+  .double-border {
+    padding: 0.35rem;
+    background-color: #fff;
+    border: 1px solid rgba(197, 199, 191, 0.2);
+  }
+
+  .dark .double-border {
+    background-color: #1c1c18;
+    border: 1px solid rgba(117, 120, 113, 0.2);
+  }
+
+  .atmospheric-glow {
+    background: radial-gradient(circle at center, rgba(255, 222, 169, 0.05) 0%, transparent 70%);
+  }
+}
