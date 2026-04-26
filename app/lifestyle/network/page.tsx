@@ -133,6 +133,54 @@ export default function NetworkTreePage() {
     }
   };
 
+  const handleDeleteNode = useCallback(async (nodeId: string) => {
+    // If the node to delete is core-self, maybe we should warn or just allow it 
+    // since loadNodes recreates it if empty. But let's allow it for consistency.
+    
+    try {
+      // 1. Delete from database
+      await networkDb.deleteNode(nodeId);
+      
+      // 2. Cleanup connections in all other nodes
+      const allNodes = await networkDb.getAllNodes();
+      for (const node of allNodes) {
+        if (node.connections.includes(nodeId)) {
+          const updatedNode = {
+            ...node,
+            connections: node.connections.filter(id => id !== nodeId)
+          };
+          await networkDb.saveNode(updatedNode);
+        }
+      }
+      
+      // 3. Reload and reset selection
+      await loadNodes();
+      setSelectedNode(null);
+    } catch (err) {
+      console.error("Failed to delete neural node", err);
+    }
+  }, [loadNodes]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only trigger if a node is selected and not in an input
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedNode) {
+        const activeElem = document.activeElement;
+        const isInput = activeElem?.tagName === 'INPUT' || activeElem?.tagName === 'TEXTAREA' || (activeElem as HTMLElement)?.isContentEditable;
+        
+        if (!isInput) {
+          e.preventDefault();
+          if (confirm(`Are you sure you want to delete node "${selectedNode.name}"?`)) {
+            handleDeleteNode(selectedNode.id);
+          }
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedNode, handleDeleteNode]);
+
   const filteredNodes = nodes.filter(n => {
     const matchesCat = activeCategory === "Universal" || n.type === activeCategory.toLowerCase();
     const matchesSearch = n.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -271,7 +319,8 @@ export default function NetworkTreePage() {
                 node={node}
                 scale={scale * (isHeatmap ? (0.8 + (node.affinity || 85) / 100) : 1)}
                 isSelected={selectedNode?.id === node.id || (isConnecting && selectedNode?.id === node.id)}
-                opacity={isFocusMode && !isRelated ? 0.2 : 1}
+                opacity={isFocusMode && selectedNode && !isRelated ? 0.2 : 1}
+                isHeatmap={isHeatmap}
                 onClick={handleNodeClick}
                 onDrag={(id, pos) => {
                   handleNodeDrag(id, pos);
@@ -292,38 +341,52 @@ export default function NetworkTreePage() {
                 exit={{ opacity: 0, y: 20, scale: 0.95 }}
                 className="flex flex-col gap-4"
               >
-                <div className="bg-white/70 dark:bg-neutral-900/60 backdrop-blur-3xl p-3 rounded-2xl border border-black/5 dark:border-white/10 flex flex-col gap-2 shadow-3xl">
+                <div className="bg-white/70 dark:bg-neutral-900/80 backdrop-blur-3xl p-4 rounded-3xl border border-black/5 dark:border-white/10 flex flex-col gap-4 shadow-4xl min-w-[200px]">
                   {/* View Mode Switching */}
-                  <div className="flex flex-col gap-1 mb-2 border-b border-black/5 dark:border-white/5 pb-2">
+                  <div className="flex flex-col gap-2">
+                    <span className="text-[9px] font-black uppercase tracking-[0.2em] text-neutral-500 mb-1 px-1">Neural Protocols</span>
                     {[
-                      { id: 'normal', icon: Eye, label: 'Standard' },
-                      { id: 'focus', icon: Target, label: 'Focus' },
-                      { id: 'heatmap', icon: BarChart3, label: 'Heatmap' }
+                      { id: 'normal', icon: Eye, label: 'Standard', desc: 'Default schematic' },
+                      { id: 'focus', icon: Target, label: 'Focus', desc: 'Isolate selection' },
+                      { id: 'heatmap', icon: BarChart3, label: 'Neural Heatmap', desc: 'Intensity analysis' }
                     ].map(mode => (
                       <button 
                         key={mode.id}
                         onClick={() => setViewMode(mode.id as any)}
                         className={cn(
-                          "w-10 h-10 flex items-center justify-center rounded-xl transition-all",
-                          viewMode === mode.id ? "bg-primary text-on-primary shadow-lg" : "text-neutral-500 hover:bg-black/5 dark:hover:bg-white/5"
+                          "group h-12 flex items-center gap-4 px-3 rounded-2xl transition-all border",
+                          viewMode === mode.id 
+                            ? "bg-primary border-primary text-on-primary shadow-xl shadow-primary/20 scale-[1.02]" 
+                            : "bg-black/5 dark:bg-white/5 border-transparent text-neutral-500 hover:bg-black/10 dark:hover:bg-white/10 hover:border-black/5 dark:hover:border-white/10"
                         )}
-                        title={mode.label}
                       >
-                        <mode.icon className="w-5 h-5" />
+                        <div className={cn(
+                          "w-8 h-8 rounded-lg flex items-center justify-center transition-all",
+                          viewMode === mode.id ? "bg-black/10" : "bg-black/5 dark:bg-white/5 group-hover:scale-110"
+                        )}>
+                          <mode.icon className="w-4 h-4" />
+                        </div>
+                        <div className="flex flex-col items-start leading-none">
+                          <span className="text-[10px] font-black uppercase tracking-widest">{mode.label}</span>
+                          <span className={cn("text-[8px] font-bold mt-1 opacity-60", viewMode === mode.id ? "text-on-primary" : "text-neutral-500")}>{mode.desc}</span>
+                        </div>
                       </button>
                     ))}
                   </div>
 
-                  <button onClick={() => setScale(s => Math.min(s + 0.1, 2))} className="w-10 h-10 flex items-center justify-center rounded-xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 transition-all text-on-surface-variant dark:text-neutral-400">
-                    <ZoomIn className="w-5 h-5" />
-                  </button>
-                  <button onClick={() => setScale(s => Math.max(s - 0.1, 0.5))} className="w-10 h-10 flex items-center justify-center rounded-xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 transition-all text-on-surface-variant dark:text-neutral-400">
-                    <ZoomOut className="w-5 h-5" />
-                  </button>
-                  <div className="h-px bg-black/5 dark:bg-white/5 mx-2 my-1" />
-                  <button onClick={() => setScale(1)} className="w-10 h-10 flex items-center justify-center rounded-xl bg-primary/10 hover:bg-primary/20 transition-all text-primary">
-                    <Target className="w-5 h-5" />
-                  </button>
+                  <div className="h-px bg-black/5 dark:bg-white/10 mx-1" />
+
+                  <div className="grid grid-cols-3 gap-2">
+                    <button onClick={() => setScale(s => Math.min(s + 0.1, 2))} className="h-12 flex items-center justify-center rounded-2xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 transition-all text-on-surface-variant dark:text-neutral-400 border border-transparent hover:border-black/5 dark:hover:border-white/5">
+                      <ZoomIn className="w-5 h-5" />
+                    </button>
+                    <button onClick={() => setScale(s => Math.max(s - 0.1, 0.5))} className="h-12 flex items-center justify-center rounded-2xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 transition-all text-on-surface-variant dark:text-neutral-400 border border-transparent hover:border-black/5 dark:hover:border-white/5">
+                      <ZoomOut className="w-5 h-5" />
+                    </button>
+                    <button onClick={() => setScale(1)} className="h-12 flex items-center justify-center rounded-2xl bg-primary/10 hover:bg-primary/20 transition-all text-primary border border-primary/20">
+                      <Target className="w-5 h-5" />
+                    </button>
+                  </div>
                 </div>
 
                 <button 
@@ -374,6 +437,11 @@ export default function NetworkTreePage() {
             setIsAddingNode(true);
           }}
           onConnect={() => setIsConnecting(true)}
+          onDelete={(id) => {
+            if (confirm(`Are you sure you want to delete node "${selectedNode?.name}"?`)) {
+              handleDeleteNode(id);
+            }
+          }}
         />
         
         {/* New/Edit Node Deployment Modal */}

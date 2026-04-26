@@ -44,6 +44,8 @@ export interface Subscription {
   next_date: string;
   type: 'income' | 'expense';
   category_name?: string;
+  total_installments?: number;
+  remaining_installments?: number;
 }
 
 export interface Goal {

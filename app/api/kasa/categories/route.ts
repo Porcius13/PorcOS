@@ -3,7 +3,7 @@ import db from "@/lib/kasa-db";
 
 export async function GET() {
   try {
-    const categories = db.prepare("SELECT * FROM categories").all();
+    const categories = (await db.execute("SELECT * FROM categories")).rows;
     return NextResponse.json(categories);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

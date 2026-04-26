@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CreditCard as CardIcon, Plus, Trash2, Calendar, AlertCircle, Bell } from 'lucide-react';
+import { CreditCard as CardIcon, Plus, Trash2, Edit2, Calendar, AlertCircle, Bell } from 'lucide-react';
 import { CreditCard } from './types';
 import { cn } from './lib/utils';
 import { apiFetch } from './lib/api';
@@ -14,6 +14,7 @@ interface CreditCardManagerProps {
 export default function CreditCardManager({ lang }: CreditCardManagerProps) {
     const [cards, setCards] = useState<CreditCard[]>([]);
     const [isAdding, setIsAdding] = useState(false);
+    const [editingCard, setEditingCard] = useState<CreditCard | null>(null);
     const [newCard, setNewCard] = useState({
         name: '',
         card_limit: '',
@@ -37,20 +38,46 @@ export default function CreditCardManager({ lang }: CreditCardManagerProps) {
 
     const handleAdd = async () => {
         if (!newCard.name || !newCard.card_limit || !newCard.balance) return;
-        await apiFetch('/api/kasa/cards', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                ...newCard,
-                card_limit: parseFloat(newCard.card_limit),
-                balance: parseFloat(newCard.balance),
-                closing_day: parseInt(newCard.closing_day),
-                due_day: parseInt(newCard.due_day)
-            })
-        });
+        
+        const payload = {
+            ...newCard,
+            card_limit: parseFloat(newCard.card_limit),
+            balance: parseFloat(newCard.balance),
+            closing_day: parseInt(newCard.closing_day),
+            due_day: parseInt(newCard.due_day)
+        };
+
+        if (editingCard) {
+            await apiFetch(`/api/kasa/cards/${editingCard.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+        } else {
+            await apiFetch('/api/kasa/cards', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+        }
+
         setIsAdding(false);
+        setEditingCard(null);
         setNewCard({ name: '', card_limit: '', balance: '', closing_day: '15', due_day: '25', color: '#ffd21f' });
         fetchCards();
+    };
+
+    const startEditing = (card: CreditCard) => {
+        setEditingCard(card);
+        setNewCard({
+            name: card.name,
+            card_limit: card.card_limit.toString(),
+            balance: card.balance.toString(),
+            closing_day: card.closing_day.toString(),
+            due_day: card.due_day.toString(),
+            color: card.color || '#ffd21f'
+        });
+        setIsAdding(true);
     };
 
     const handleDelete = async (id: number) => {
@@ -97,6 +124,13 @@ export default function CreditCardManager({ lang }: CreditCardManagerProps) {
                                     <h3 className="text-3xl font-black tracking-tighter uppercase">{card.name}</h3>
                                 </div>
                                 <div className="flex items-center gap-3">
+                                    <button 
+                                        onClick={() => startEditing(card)}
+                                        className="p-3 bg-foreground/5 hover:bg-primary/20 rounded-xl backdrop-blur-md transition-all active:scale-90 border border-foreground/10"
+                                        title={t('editCard', lang)}
+                                    >
+                                        <Edit2 size={18} className="text-foreground/40 group-hover:text-primary" />
+                                    </button>
                                     <button 
                                         onClick={() => handleDelete(card.id)}
                                         className="p-3 bg-foreground/5 hover:bg-rose-500/20 rounded-xl backdrop-blur-md transition-all active:scale-90 border border-foreground/10"
@@ -149,7 +183,11 @@ export default function CreditCardManager({ lang }: CreditCardManagerProps) {
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
-                            onClick={() => setIsAdding(false)}
+                            onClick={() => {
+                                setIsAdding(false);
+                                setEditingCard(null);
+                                setNewCard({ name: '', card_limit: '', balance: '', closing_day: '15', due_day: '25', color: '#ffd21f' });
+                            }}
                             className="absolute inset-0 bg-background/80 backdrop-blur-md"
                         />
                         <motion.div
@@ -159,8 +197,17 @@ export default function CreditCardManager({ lang }: CreditCardManagerProps) {
                             className="relative w-full max-w-lg obsidian-card !p-12 border border-foreground/10"
                         >
                             <div className="flex justify-between items-center mb-10">
-                                <h3 className="text-2xl font-black text-foreground uppercase tracking-tight">{t('financialIssuance', lang)}</h3>
-                                <button onClick={() => setIsAdding(false)} className="text-foreground/20 hover:text-foreground transition-colors">
+                                <h3 className="text-2xl font-black text-foreground uppercase tracking-tight">
+                                    {editingCard ? t('updateIssuance', lang) : t('financialIssuance', lang)}
+                                </h3>
+                                <button 
+                                    onClick={() => {
+                                        setIsAdding(false);
+                                        setEditingCard(null);
+                                        setNewCard({ name: '', card_limit: '', balance: '', closing_day: '15', due_day: '25', color: '#ffd21f' });
+                                    }} 
+                                    className="text-foreground/20 hover:text-foreground transition-colors"
+                                >
                                     <Plus className="rotate-45" size={24} />
                                 </button>
                             </div>
@@ -212,7 +259,7 @@ export default function CreditCardManager({ lang }: CreditCardManagerProps) {
                                     onClick={handleAdd}
                                     className="w-full h-16 bg-primary text-black rounded-2xl font-black uppercase tracking-[0.2em] shadow-2xl shadow-primary/20 mt-4 hover:scale-[1.02] active:scale-95 transition-all"
                                 >
-                                    {t('authorizeIssuance', lang)}
+                                    {editingCard ? t('reAuthorizeIssuance', lang) : t('authorizeIssuance', lang)}
                                 </button>
                             </div>
                         </motion.div>

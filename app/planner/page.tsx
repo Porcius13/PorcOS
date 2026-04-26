@@ -5,10 +5,12 @@ import {
     ChevronLeft, ChevronRight, Plus, X, Calendar as CalendarIcon, Clock, Check, Trash2,
     Inbox, LayoutGrid, Settings, MoreVertical, MapPin, Tag, Bell, Search,
     Coffee, Book, Laptop, Bike, Dumbbell, Utensils, Music, Heart, Camera, Briefcase, Moon, Sun,
-    RefreshCcw, Paperclip, ListTodo
+    RefreshCcw, Paperclip, ListTodo, Edit3, AlertCircle
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+
+type Subtask = { id: string; text: string; completed: boolean };
 
 type Task2 = {
     id: string;
@@ -22,6 +24,7 @@ type Task2 = {
     inbox: boolean;
     notes?: string;
     isAllDay?: boolean;
+    subtasks?: Subtask[];
 };
 
 const ICONS = [
@@ -68,6 +71,49 @@ export default function PlannerPage() {
     const [isInbox, setIsInbox] = useState(false);
     const [isAllDay, setIsAllDay] = useState(false);
     const [notes, setNotes] = useState("");
+    const [newSubtasks, setNewSubtasks] = useState<Subtask[]>([]);
+
+    // UI Enhancements State
+    const [toastMessage, setToastMessage] = useState<string | null>(null);
+    const [actionToast, setActionToast] = useState<string | null>(null);
+    const [deleteConfirm, setDeleteConfirm] = useState<Task2 | null>(null);
+    const [undoToast, setUndoToast] = useState<{ task: Task2 } | null>(null);
+    const undoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    const showToast = (msg: string) => {
+        setToastMessage(msg);
+        setTimeout(() => setToastMessage(null), 3500);
+    };
+
+    const showActionToast = (msg: string) => {
+        setActionToast(msg);
+        setTimeout(() => setActionToast(null), 3500);
+    };
+
+    // Keyboard ESC Listener
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === "Escape") {
+                setIsDrawerOpen(false);
+                setDeleteConfirm(null);
+            }
+        };
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, []);
+
+    // Date Navigation Logic
+    const handlePrevDay = () => {
+        const d = new Date(selectedDate);
+        d.setDate(d.getDate() - 1);
+        setSelectedDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+    };
+
+    const handleNextDay = () => {
+        const d = new Date(selectedDate);
+        d.setDate(d.getDate() + 1);
+        setSelectedDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+    };
 
     // Load tasks
     useEffect(() => {
@@ -92,8 +138,18 @@ export default function PlannerPage() {
 
     const dailyTasks = useMemo(() => {
         return tasks.filter(t => t.date === selectedDate && !t.inbox)
-                    .sort((a, b) => (a.startTime || "").localeCompare(b.startTime || ""));
+                    .sort((a, b) => {
+                        if (a.isAllDay && !b.isAllDay) return -1;
+                        if (!a.isAllDay && b.isAllDay) return 1;
+                        return (a.startTime || "").localeCompare(b.startTime || "");
+                    });
     }, [tasks, selectedDate]);
+
+    const dailyProgress = useMemo(() => {
+        if (dailyTasks.length === 0) return 0;
+        const completed = dailyTasks.filter(t => t.completed).length;
+        return Math.round((completed / dailyTasks.length) * 100);
+    }, [dailyTasks]);
 
     const inboxTasks = useMemo(() => {
         return tasks.filter(t => t.inbox);
@@ -120,23 +176,65 @@ export default function PlannerPage() {
     }, [selectedDate]);
 
     const handleAddTask = () => {
-        if (!newTitle.trim()) return;
-        const newTask: Task2 = {
-            id: Date.now().toString(),
-            title: newTitle,
-            date: selectedDate,
-            startTime: isInbox || isAllDay ? undefined : newStartTime,
-            duration: newDuration,
-            icon: newIcon,
-            color: newColor,
-            completed: false,
-            inbox: isInbox,
-            isAllDay: isAllDay,
-            notes: notes
-        };
-        setTasks([...tasks, newTask]);
+        if (!newTitle.trim()) {
+            showToast("Görev başlığı boş bırakılamaz.");
+            return;
+        }
+        
+        if (editingTask) {
+            setTasks(tasks.map(t => t.id === editingTask.id ? {
+                ...t,
+                title: newTitle,
+                date: selectedDate,
+                startTime: isInbox || isAllDay ? undefined : newStartTime,
+                duration: newDuration,
+                icon: newIcon,
+                color: newColor,
+                inbox: isInbox,
+                isAllDay: isAllDay,
+                notes: notes,
+                subtasks: newSubtasks
+            } : t));
+            showToast("Görev başarıyla güncellendi.");
+        } else {
+            const newTask: Task2 = {
+                id: Date.now().toString(),
+                title: newTitle,
+                date: selectedDate,
+                startTime: isInbox || isAllDay ? undefined : newStartTime,
+                duration: newDuration,
+                icon: newIcon,
+                color: newColor,
+                completed: false,
+                inbox: isInbox,
+                isAllDay: isAllDay,
+                notes: notes,
+                subtasks: newSubtasks
+            };
+            setTasks([...tasks, newTask]);
+            showToast("Yeni görev eklendi.");
+        }
         setIsDrawerOpen(false);
         resetForm();
+    };
+
+    const openEditDrawer = (task: Task2) => {
+        setEditingTask(task);
+        setNewTitle(task.title);
+        setNewStartTime(task.startTime || "10:00");
+        setNewDuration(task.duration);
+        setNewIcon(task.icon);
+        setNewColor(task.color);
+        setIsInbox(task.inbox);
+        setIsAllDay(!!task.isAllDay);
+        setNotes(task.notes || "");
+        setNewSubtasks(task.subtasks || []);
+        
+        if (!task.inbox) {
+            setSelectedDate(task.date);
+        }
+        
+        setIsDrawerOpen(true);
     };
 
     const resetForm = () => {
@@ -148,6 +246,7 @@ export default function PlannerPage() {
         setIsInbox(false);
         setIsAllDay(false);
         setNotes("");
+        setNewSubtasks([]);
         setEditingTask(null);
     };
 
@@ -155,13 +254,34 @@ export default function PlannerPage() {
         setTasks(tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
     };
 
-    const deleteTask = (id: string) => {
-        setTasks(tasks.filter(t => t.id !== id));
+    const confirmAndDeleteTask = (task: Task2) => {
+        setTasks(prev => prev.filter(t => t.id !== task.id));
+        setDeleteConfirm(null);
+        if (editingTask?.id === task.id) {
+            setIsDrawerOpen(false);
+            resetForm();
+        }
+        
+        // Trigger Undo
+        if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
+        setUndoToast({ task });
+        undoTimeoutRef.current = setTimeout(() => {
+            setUndoToast(null);
+        }, 4000);
+    };
+
+    const handleUndo = () => {
+        if (undoToast) {
+            setTasks(prev => [...prev, undoToast.task]);
+            if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
+            setUndoToast(null);
+            showToast("Görev başarıyla geri yüklendi.");
+        }
     };
 
     return (
         <div className="min-h-screen bg-background text-foreground font-sans selection:bg-[#ffd21f]/30 relative overflow-x-hidden transition-colors duration-300">
-            <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-2xl border-b border-border py-4 px-8 flex items-center justify-between">
+            <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-2xl border-b border-border py-4 px-4 md:px-8 flex items-center justify-between gap-4 overflow-x-auto no-scrollbar">
                 <div className="flex items-center gap-6">
                     <button 
                         onClick={() => setIsInboxOpen(!isInboxOpen)}
@@ -175,12 +295,27 @@ export default function PlannerPage() {
                     </button>
                     
                     <div className="flex items-center gap-4">
-                        <h1 className="text-xl font-bold tracking-tight">
-                            {new Date(selectedDate).toLocaleDateString('en-US', { month: 'long' })} <span className="text-[#ffd21f]">{new Date(selectedDate).toLocaleDateString('en-US', { year: 'numeric' })}</span>
-                        </h1>
+                        <div className="flex items-center gap-3">
+                            <h1 className="text-xl font-bold tracking-tight">
+                                {new Date(selectedDate).toLocaleDateString('en-US', { month: 'long' })} <span className="text-[#ffd21f]">{new Date(selectedDate).toLocaleDateString('en-US', { year: 'numeric' })}</span>
+                            </h1>
+                            {dailyTasks.length > 0 && (
+                                <div className="px-3 py-1 bg-accent/30 rounded-full flex items-center gap-2 border border-border/40 shadow-sm" title={`${dailyProgress}% Completed Today`}>
+                                    <div className="w-4 h-4 rounded-full border border-muted-foreground/30 flex items-center justify-center overflow-hidden relative rotate-180">
+                                        <motion.div 
+                                            className="absolute top-0 left-0 right-0 bg-[#ffd21f]" 
+                                            initial={{ height: 0 }} 
+                                            animate={{ height: `${dailyProgress}%` }} 
+                                        />
+                                    </div>
+                                    <span className="text-[10px] font-black">{dailyProgress}%</span>
+                                </div>
+                            )}
+                        </div>
+
                         <div className="flex bg-accent/30 p-1 rounded-xl">
-                            <button className="p-1 hover:bg-accent rounded-lg transition-colors text-muted-foreground hover:text-foreground"><ChevronLeft className="w-4 h-4" /></button>
-                            <button className="p-1 hover:bg-accent rounded-lg transition-colors text-muted-foreground hover:text-foreground"><ChevronRight className="w-4 h-4" /></button>
+                            <button onClick={handlePrevDay} className="p-1 hover:bg-accent rounded-lg transition-colors text-muted-foreground hover:text-foreground"><ChevronLeft className="w-4 h-4" /></button>
+                            <button onClick={handleNextDay} className="p-1 hover:bg-accent rounded-lg transition-colors text-muted-foreground hover:text-foreground"><ChevronRight className="w-4 h-4" /></button>
                         </div>
                     </div>
                 </div>
@@ -204,7 +339,7 @@ export default function PlannerPage() {
                 </button>
             </header>
 
-            <nav className="sticky top-[73px] z-20 bg-background border-b border-border py-4 px-12 overflow-x-auto no-scrollbar">
+            <nav className="sticky top-[73px] z-20 bg-background border-b border-border py-4 px-4 md:px-12 overflow-x-auto no-scrollbar">
                 <div className="max-w-4xl mx-auto flex justify-between gap-4">
                     {weekDays.map((day, i) => (
                         <button 
@@ -226,7 +361,7 @@ export default function PlannerPage() {
                 </div>
             </nav>
 
-            <main className="max-w-5xl mx-auto px-8 py-16 flex relative gap-6">
+            <main className="max-w-5xl mx-auto px-4 md:px-8 py-8 md:py-16 flex flex-col md:flex-row relative gap-6">
                 {/* Inbox Sliding Menu */}
                 <AnimatePresence>
                     {isInboxOpen && (
@@ -236,7 +371,7 @@ export default function PlannerPage() {
                             exit={{ width: 0, opacity: 0, marginRight: 0 }}
                             className="shrink-0 overflow-hidden"
                         >
-                            <div className="w-[260px] space-y-6">
+                            <div className="w-full md:w-[260px] space-y-6">
                                 <div className="space-y-4">
                                     {/* Quick Add Input */}
                                     <div className="relative group">
@@ -257,6 +392,7 @@ export default function PlannerPage() {
                                                         inbox: true
                                                     }]);
                                                     (e.target as HTMLInputElement).value = "";
+                                                    showToast("Inbox'a görev eklendi.");
                                                 }
                                             }}
                                         />
@@ -268,7 +404,7 @@ export default function PlannerPage() {
                                 {/* Inbox List */}
                                     <div className="space-y-3">
                                         {inboxTasks.map(task => (
-                                            <div key={task.id} className="p-3 bg-white dark:bg-card border border-border/40 rounded-2xl flex items-center gap-3 group hover:border-[#ffd21f]/60 transition-all cursor-pointer shadow-sm relative">
+                                            <div key={task.id} className="p-3 bg-white dark:bg-card border border-border/40 rounded-2xl flex items-center gap-3 group hover:border-[#ffd21f]/60 transition-all shadow-sm relative pr-20">
                                                 <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 bg-[#ffd21f]/10 text-[#ffd21f]">
                                                     {ICONS.find(i => i.id === task.icon)?.icon && React.createElement(ICONS.find(i => i.id === task.icon)!.icon, { className: "w-4 h-4" })}
                                                 </div>
@@ -276,12 +412,34 @@ export default function PlannerPage() {
                                                     <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">{task.duration}m</p>
                                                     <p className="text-xs font-bold text-foreground truncate">{task.title}</p>
                                                 </div>
-                                                <button 
-                                                    onClick={() => setTasks(tasks.map(t => t.id === task.id ? { ...t, inbox: false } : t))}
-                                                    className="w-7 h-7 bg-[#ffd21f]/10 text-[#ffd21f] rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-[#ffd21f] hover:text-black"
-                                                >
-                                                    <Plus className="w-3 h-3" />
-                                                </button>
+
+                                                {/* Hover Actions Overlay */}
+                                                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center bg-white/90 dark:bg-card/90 backdrop-blur-sm p-1 rounded-full opacity-0 group-hover:opacity-100 transition-all shadow-sm">
+                                                    <button 
+                                                        onClick={() => openEditDrawer(task)}
+                                                        className="w-7 h-7 rounded-full flex items-center justify-center hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                                                        title="Edit Task"
+                                                    >
+                                                        <Edit3 className="w-3 h-3" />
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => setDeleteConfirm(task)}
+                                                        className="w-7 h-7 rounded-full flex items-center justify-center hover:bg-destructive/10 text-muted-foreground hover:text-red-500 transition-colors"
+                                                        title="Delete Task"
+                                                    >
+                                                        <Trash2 className="w-3 h-3" />
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => {
+                                                            setTasks(tasks.map(t => t.id === task.id ? { ...t, inbox: false } : t));
+                                                            showToast("Görev bugüne taşındı.");
+                                                        }}
+                                                        className="w-7 h-7 bg-[#ffd21f]/10 text-[#ffd21f] rounded-full flex items-center justify-center transition-all hover:bg-[#ffd21f] hover:text-black ml-1"
+                                                        title="Move to Today"
+                                                    >
+                                                        <Plus className="w-3 h-3" />
+                                                    </button>
+                                                </div>
                                             </div>
                                         ))}
 
@@ -298,10 +456,10 @@ export default function PlannerPage() {
                 </AnimatePresence>
 
                 {/* Main Timeline */}
-                <section className="flex-1 min-w-[500px]">
+                <section className="flex-1 min-w-0 md:min-w-[500px]">
                     <div className="relative space-y-0 pb-32">
                         {/* The Axis Line */}
-                        <div className="absolute left-[88px] top-4 bottom-0 w-[2px] bg-border z-0" />
+                        <div className="absolute left-[70px] md:left-[88px] top-4 bottom-0 w-[2px] bg-border z-0" />
 
                         {dailyTasks.length === 0 ? (
                             <div className="h-[400px] flex flex-col items-center justify-center text-center opacity-40">
@@ -315,9 +473,9 @@ export default function PlannerPage() {
                                 
                                 return (
                                     <React.Fragment key={task.id}>
-                                        <div className="relative flex items-center gap-8 py-6 group">
+                                        <div className="relative flex items-center gap-4 md:gap-8 py-6 group">
                                             {/* Time Column (Left) */}
-                                            <div className="w-16 text-right pt-1 tabular-nums">
+                                            <div className="w-12 md:w-16 text-right pt-1 tabular-nums">
                                                 <p className="text-xs font-black text-muted-foreground uppercase">{task.isAllDay ? "ALL DAY" : task.startTime}</p>
                                             </div>
 
@@ -338,30 +496,56 @@ export default function PlannerPage() {
                                             <div className="flex-1 flex items-center justify-between">
                                                 <div className="flex-1">
                                                     <h3 className={cn("text-lg font-bold tracking-tight", task.completed && "line-through opacity-40")}>{task.title}</h3>
+                                                    {task.subtasks && task.subtasks.length > 0 && (
+                                                        <div className="flex items-center gap-1 mt-1.5 opacity-60">
+                                                            <ListTodo className="w-3 h-3" />
+                                                            <span className="text-[10px] font-black uppercase tracking-widest">{task.subtasks.filter(s => s.completed).length}/{task.subtasks.length} Subtasks</span>
+                                                        </div>
+                                                    )}
                                                     {task.notes && <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{task.notes}</p>}
                                                 </div>
                                                 
-                                                {/* Completion Ring (Far Right) */}
-                                                <div 
-                                                    onClick={() => toggleTask(task.id)}
-                                                    className="w-10 h-10 rounded-full border-2 border-border flex items-center justify-center cursor-pointer hover:border-[#ffd21f]/50 transition-all relative group/ring"
-                                                >
-                                                    <svg className="absolute inset-0 w-full h-full transform -rotate-90">
-                                                        <motion.circle 
-                                                            cx="18" cy="18" r="15" fill="none" stroke={task.color} strokeWidth="2.5" 
-                                                            initial={{ pathLength: 0 }}
-                                                            animate={{ pathLength: task.completed ? 1 : 0 }}
-                                                            transition={{ duration: 0.5 }}
-                                                        />
-                                                    </svg>
-                                                    <div className={cn("w-3 h-3 rounded-full transition-all duration-300", task.completed ? "bg-[#ffd21f] scale-100 shadow-[0_0_10px_#ffd21f]" : "bg-muted-foreground/20 scale-0 group-hover/ring:scale-50")} />
+                                                <div className="flex items-center gap-3">
+                                                    {/* Hover Actions */}
+                                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <button 
+                                                            onClick={() => openEditDrawer(task)}
+                                                            className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                                                            title="Edit Task"
+                                                        >
+                                                            <Edit3 className="w-4 h-4" />
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => setDeleteConfirm(task)}
+                                                            className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-destructive/10 text-muted-foreground hover:text-red-500 transition-colors"
+                                                            title="Delete Task"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+
+                                                    {/* Completion Ring (Far Right) */}
+                                                    <div 
+                                                        onClick={() => toggleTask(task.id)}
+                                                        className="w-10 h-10 rounded-full border-2 border-border flex items-center justify-center cursor-pointer hover:border-[#ffd21f]/50 transition-all relative group/ring shrink-0"
+                                                    >
+                                                        <svg className="absolute inset-0 w-full h-full transform -rotate-90">
+                                                            <motion.circle 
+                                                                cx="18" cy="18" r="15" fill="none" stroke={task.color} strokeWidth="2.5" 
+                                                                initial={{ pathLength: 0 }}
+                                                                animate={{ pathLength: task.completed ? 1 : 0 }}
+                                                                transition={{ duration: 0.5 }}
+                                                            />
+                                                        </svg>
+                                                        <div className={cn("w-3 h-3 rounded-full transition-all duration-300", task.completed ? "bg-[#ffd21f] scale-100 shadow-[0_0_10px_#ffd21f]" : "bg-muted-foreground/20 scale-0 group-hover/ring:scale-50")} />
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
 
                                         {/* Interval Placeholder */}
                                         {nextTask && (
-                                            <div className="relative flex items-center gap-8 py-2 ml-[88px]">
+                                            <div className="relative flex items-center gap-4 md:gap-8 py-2 ml-[70px] md:ml-[88px]">
                                                 <div className="absolute left-[0px] top-0 bottom-0 w-[2px] border-l-2 border-dotted border-border" style={{ marginLeft: "-1px" }} />
                                                 <div className="pl-12 py-8 grayscale transition-all opacity-40 italic hover:opacity-80">
                                                     <p className="text-xs font-medium tracking-wide text-muted-foreground">Interval Over. What's next?</p>
@@ -382,7 +566,7 @@ export default function PlannerPage() {
                     resetForm();
                     setIsDrawerOpen(true);
                 }}
-                className="fixed bottom-12 right-12 w-16 h-16 bg-[#ffd21f] text-black rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(255,210,31,0.4)] hover:shadow-[0_0_40px_rgba(255,210,31,0.6)] hover:scale-110 active:scale-95 transition-all z-40"
+                className="fixed bottom-6 right-6 md:bottom-12 md:right-12 w-14 h-14 md:w-16 md:h-16 bg-[#ffd21f] text-black rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(255,210,31,0.4)] hover:shadow-[0_0_40px_rgba(255,210,31,0.6)] hover:scale-110 active:scale-95 transition-all z-40"
             >
                 <Plus className="w-8 h-8 stroke-[3]" />
             </button>
@@ -403,7 +587,7 @@ export default function PlannerPage() {
                             animate={{ x: 0 }}
                             exit={{ x: "100%" }}
                             transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                            className="fixed top-0 right-0 h-full w-[450px] bg-background dark:bg-[#0c0c0e] shadow-2xl z-[60] flex flex-col border-l border-border"
+                            className="fixed top-0 right-0 h-full w-full sm:w-[450px] bg-background dark:bg-[#0c0c0e] shadow-2xl z-[60] flex flex-col border-l border-border"
                         >
                             {/* Dynamic Header Peak */}
                             <div className="relative h-[240px] shrink-0 p-8 flex flex-col justify-end transition-colors duration-500 overflow-hidden" style={{ backgroundColor: newColor }}>
@@ -494,7 +678,7 @@ export default function PlannerPage() {
                                 </div>
 
                                 {/* Repeat Toggle */}
-                                <div className="bg-white dark:bg-[#1c1c1e] rounded-[1.8rem] px-5 py-4 border border-border/40 flex items-center justify-between group cursor-pointer hover:bg-neutral-50 dark:hover:bg-accent transition-all shadow-sm max-w-[max-content]">
+                                <div onClick={() => showActionToast("Tekrar (Repeat) özelliği yakında eklenecek.")} className="bg-white dark:bg-[#1c1c1e] rounded-[1.8rem] px-5 py-4 border border-border/40 flex items-center justify-between group cursor-pointer hover:bg-neutral-50 dark:hover:bg-accent transition-all shadow-sm max-w-[max-content]">
                                     <div className="flex items-center gap-4">
                                         <RefreshCcw className="w-4 h-4 text-muted-foreground" />
                                         <span className="text-sm font-bold opacity-60">Repeat</span>
@@ -502,21 +686,56 @@ export default function PlannerPage() {
                                     </div>
                                 </div>
 
-                                {/* Notes & Subtasks */}
+                                {/* Active Subtasks Section */}
                                 <div className="bg-white dark:bg-[#1c1c1e] rounded-[1.8rem] border border-border/40 overflow-hidden shadow-sm">
-                                    <div className="p-5 flex items-center gap-4 border-b border-border/40 group cursor-pointer hover:bg-neutral-50 dark:hover:bg-accent transition-all">
-                                        <div className="w-4 h-4 border-2 border-muted-foreground/30 rounded" />
-                                        <span className="text-sm font-bold text-muted-foreground opacity-60">Add Subtask</span>
+                                    <div className="p-4 flex flex-col gap-3">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Alt Görevler</span>
+                                            <button 
+                                                onClick={() => setNewSubtasks([...newSubtasks, { id: Date.now().toString(), text: "", completed: false }])} 
+                                                className="w-6 h-6 bg-accent rounded-lg flex items-center justify-center hover:bg-[#ffd21f] hover:text-black transition-all text-muted-foreground"
+                                            >
+                                                <Plus className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                        
+                                        {newSubtasks.map((st, i) => (
+                                            <div key={st.id} className="flex items-center gap-3 group">
+                                                <div 
+                                                    onClick={() => setNewSubtasks(newSubtasks.map((s, idx) => idx === i ? { ...s, completed: !s.completed } : s))}
+                                                    className={cn("w-5 h-5 rounded flex items-center justify-center cursor-pointer transition-all shrink-0", st.completed ? "bg-[#ffd21f] text-black" : "border-2 border-border/80 hover:border-[#ffd21f]/50")}
+                                                >
+                                                    {st.completed && <Check className="w-3 h-3 stroke-[3]" />}
+                                                </div>
+                                                <input 
+                                                    value={st.text} 
+                                                    autoFocus={st.text === ""}
+                                                    onChange={e => setNewSubtasks(newSubtasks.map((s, idx) => idx === i ? { ...s, text: e.target.value } : s))}
+                                                    placeholder="Alt görev açıklaması..."
+                                                    className={cn("flex-1 bg-transparent border-none outline-none text-sm font-medium", st.completed && "line-through opacity-40")}
+                                                />
+                                                <button 
+                                                    onClick={() => setNewSubtasks(newSubtasks.filter((_, idx) => idx !== i))} 
+                                                    className="opacity-0 group-hover:opacity-100 hover:text-red-500 transition-all"
+                                                >
+                                                    <X className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        ))}
+
+                                        {newSubtasks.length === 0 && (
+                                            <span className="text-xs font-medium text-muted-foreground opacity-60 italic ml-1 py-1">Henüz alt görev oluşturulmadı.</span>
+                                        )}
                                     </div>
-                                    <div className="p-5 flex items-center gap-4">
+                                    <div className="p-4 border-t border-border/40 flex items-center gap-4 bg-black/5 dark:bg-white/5">
                                         <div className="p-2 shrink-0">
                                             <Paperclip className="w-4 h-4 text-muted-foreground" />
                                         </div>
                                         <textarea 
                                             value={notes}
                                             onChange={e => setNotes(e.target.value)}
-                                            placeholder="Add notes, meeting links or phone numbers..."
-                                            className="w-full bg-transparent p-0 text-sm font-medium opacity-60 placeholder:opacity-20 outline-none resize-none min-h-[100px]"
+                                            placeholder="Notlar, bağlantılar veya telefon numaraları..."
+                                            className="w-full bg-transparent p-0 text-sm font-medium opacity-60 placeholder:opacity-40 outline-none resize-none min-h-[60px]"
                                         />
                                     </div>
                                 </div>
@@ -548,16 +767,120 @@ export default function PlannerPage() {
                                 </div>
                             </div>
 
-                            <div className="p-8 bg-[#f5f5f7] dark:bg-background border-t border-border/20 flex justify-end">
+                            <div className="p-8 bg-[#f5f5f7] dark:bg-background border-t border-border/20 flex justify-end gap-3">
+                                {editingTask && (
+                                    <button 
+                                        onClick={() => setDeleteConfirm(editingTask)}
+                                        className="px-6 py-3 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded-full font-bold text-xs tracking-wide transition-all border border-red-500/20"
+                                    >
+                                        Delete
+                                    </button>
+                                )}
                                 <button 
                                     onClick={handleAddTask}
-                                    className="px-8 py-3 bg-[#e0e3e5] dark:bg-card text-muted-foreground/60 rounded-full font-bold text-xs tracking-wide transition-all shadow-inner border border-border/10"
+                                    className={cn(
+                                        "px-8 py-3 rounded-full font-bold text-xs tracking-wide transition-all",
+                                        editingTask 
+                                            ? "bg-[#ffd21f] text-black shadow-[0_0_20px_rgba(255,210,31,0.3)]" 
+                                            : "bg-[#e0e3e5] dark:bg-card text-muted-foreground rounded-full shadow-inner border border-border/10 hover:bg-[#ffd21f] hover:text-black"
+                                    )}
                                 >
-                                    Create Task
+                                    {editingTask ? "Save Changes" : "Create Task"}
                                 </button>
                             </div>
                         </motion.div>
                     </>
+                )}
+            </AnimatePresence>
+
+            {/* DELETE CONFIRMATION MODAL */}
+            <AnimatePresence>
+                {deleteConfirm && (
+                    <>
+                        <motion.div 
+                            initial={{ opacity: 0 }} 
+                            animate={{ opacity: 1 }} 
+                            exit={{ opacity: 0 }}
+                            onClick={() => setDeleteConfirm(null)}
+                            className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm"
+                        />
+                        <motion.div 
+                            initial={{ opacity: 0, scale: 0.95, y: 20, x: "-50%" }}
+                            animate={{ opacity: 1, scale: 1, y: "-50%", x: "-50%" }}
+                            exit={{ opacity: 0, scale: 0.95, y: 20, x: "-50%" }}
+                            className="fixed top-1/2 left-1/2 z-[80] bg-background dark:bg-[#0c0c0e] p-8 rounded-[2rem] shadow-2xl w-[400px] border border-border/40 text-center"
+                        >
+                            <div className="w-16 h-16 rounded-full bg-red-500/10 text-red-500 flex items-center justify-center mx-auto mb-6">
+                                <Trash2 className="w-8 h-8" />
+                            </div>
+                            <h3 className="text-xl font-bold mb-2">Görevi Sil</h3>
+                            <p className="text-muted-foreground text-sm mb-8">
+                                <strong className="text-foreground">"{deleteConfirm.title}"</strong> görevini silmek istediğinize emin misiniz? Bu işlem geri alınamaz.
+                            </p>
+                            <div className="flex items-center gap-3">
+                                <button 
+                                    onClick={() => setDeleteConfirm(null)}
+                                    className="flex-1 py-3 bg-accent hover:bg-accent/80 rounded-xl font-bold text-sm transition-all"
+                                >
+                                    İptal
+                                </button>
+                                <button 
+                                    onClick={() => confirmAndDeleteTask(deleteConfirm)}
+                                    className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white rounded-xl font-bold text-sm transition-all shadow-lg shadow-red-500/30"
+                                >
+                                    Sil
+                                </button>
+                            </div>
+                        </motion.div>
+                    </>
+                )}
+            </AnimatePresence>
+
+            {/* TOAST & UNDO NOTIFICATIONS */}
+            <AnimatePresence>
+                {/* Standard Success Toast */}
+                {toastMessage && (
+                    <motion.div 
+                        initial={{ opacity: 0, y: 50, x: "-50%" }}
+                        animate={{ opacity: 1, y: 0, x: "-50%" }}
+                        exit={{ opacity: 0, y: 20, x: "-50%" }}
+                        className="fixed bottom-10 left-1/2 z-[100] bg-[#1c1c1e] text-white px-6 py-3 rounded-full shadow-2xl border border-white/10 flex items-center gap-3"
+                    >
+                        <Check className="w-4 h-4 text-[#ffd21f]" />
+                        <span className="text-sm font-medium">{toastMessage}</span>
+                    </motion.div>
+                )}
+                
+                {/* Action Required Toast */}
+                {actionToast && (
+                    <motion.div 
+                        initial={{ opacity: 0, y: 50, x: "-50%" }}
+                        animate={{ opacity: 1, y: 0, x: "-50%" }}
+                        exit={{ opacity: 0, y: 20, x: "-50%" }}
+                        className="fixed bottom-24 left-1/2 z-[100] bg-blue-500/10 backdrop-blur-xl text-blue-500 px-6 py-3 rounded-full shadow-2xl border border-blue-500/20 flex items-center gap-3"
+                    >
+                        <AlertCircle className="w-4 h-4" />
+                        <span className="text-sm font-medium">{actionToast}</span>
+                    </motion.div>
+                )}
+
+                {/* Undo Toast */}
+                {undoToast && (
+                    <motion.div 
+                        initial={{ opacity: 0, y: 50, x: "-50%" }}
+                        animate={{ opacity: 1, y: 0, x: "-50%" }}
+                        exit={{ opacity: 0, y: 20, x: "-50%" }}
+                        className="fixed bottom-24 left-1/2 z-[100] bg-background dark:bg-[#1c1c1e] text-foreground px-4 py-3 rounded-xl shadow-2xl border border-border/40 flex items-center gap-4 min-w-[300px]"
+                    >
+                        <Trash2 className="w-4 h-4 text-red-500" />
+                        <span className="text-sm font-medium flex-1 truncate">"{undoToast.task.title}" silindi.</span>
+                        <button 
+                            onClick={handleUndo}
+                            className="bg-accent hover:bg-accent/80 text-foreground px-4 py-1.5 rounded-lg text-xs font-black tracking-wide transition-all uppercase"
+                        >
+                            Geri Al
+                        </button>
+                    </motion.div>
                 )}
             </AnimatePresence>
 
@@ -578,4 +901,3 @@ export default function PlannerPage() {
         </div>
     );
 }
-

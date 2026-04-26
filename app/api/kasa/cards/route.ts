@@ -3,7 +3,7 @@ import { db } from '@/lib/kasa-db';
 
 export async function GET() {
   try {
-    const cards = db.prepare('SELECT * FROM cards').all();
+    const cards = (await db.execute('SELECT * FROM cards')).rows;
     return NextResponse.json(cards);
   } catch (error) {
     console.error('Kasa API: Error fetching cards:', error);
@@ -16,9 +16,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { name, card_limit, balance, closing_day, due_day, color } = body;
 
-    const result = db.prepare(
-      'INSERT INTO cards (name, card_limit, balance, closing_day, due_day, color) VALUES (?, ?, ?, ?, ?, ?)'
-    ).run(name, card_limit, balance, closing_day, due_day, color);
+    const result = (await db.execute({ sql: 'INSERT INTO cards (name, card_limit, balance, closing_day, due_day, color) VALUES (?, ?, ?, ?, ?, ?)', args: [name, card_limit, balance, closing_day, due_day, color] }));
 
     return NextResponse.json({ id: result.lastInsertRowid });
   } catch (error) {

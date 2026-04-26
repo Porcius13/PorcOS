@@ -7,6 +7,7 @@ import { ArrowLeft, ChevronRight, Settings, User, Plus, List, X, BookOpen, Star 
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { researchDb } from "@/components/lifestyle/lib/research-db";
+import { smartSanitize } from "@/lib/medical-sanitizer";
 
 export default function ResearchDetailPage() {
   const router = useRouter();
@@ -20,25 +21,10 @@ export default function ResearchDetailPage() {
   
   const { processedContent, processedGoldenWords } = useMemo(() => {
     if (!item) return { processedContent: "", processedGoldenWords: "" };
-    if (typeof window === "undefined") return { processedContent: item.description, processedGoldenWords: item.goldenWords || "" };
-
-    const parser = new DOMParser();
     
-    const cleanStyles = (html: string) => {
-      if (!html) return "";
-      const doc = parser.parseFromString(html, 'text/html');
-      doc.querySelectorAll('*').forEach((el: any) => {
-        if (el.style) {
-          el.style.color = "";
-          el.style.backgroundColor = "";
-        }
-      });
-      return doc.body.innerHTML;
-    };
-
     return {
-      processedContent: cleanStyles(item.description),
-      processedGoldenWords: cleanStyles(item.goldenWords)
+      processedContent: smartSanitize(item.description),
+      processedGoldenWords: smartSanitize(item.goldenWords || "")
     };
   }, [item]);
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
 import { ArrowLeft, Book, Upload, FileUp, Loader2, Plus } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -9,7 +9,7 @@ import { MarkdownEditor } from "@/components/markdown-editor";
 
 type LifestyleTab = "spearfishing" | "bar";
 
-export default function LifestyleNewPage() {
+function LifestyleNewContent() {
   const [activeTab, setActiveTab] = useState<LifestyleTab>("spearfishing");
   const searchParams = useSearchParams();
   const editId = searchParams.get("id");
@@ -336,5 +336,13 @@ function BarSection({ editId }: { editId: string | null }) {
         </button>
       </div>
     </form>
+  );
+}
+
+export default function LifestyleNewPage() {
+  return (
+    <Suspense fallback={<div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin text-neutral-400" /></div>}>
+      <LifestyleNewContent />
+    </Suspense>
   );
 }

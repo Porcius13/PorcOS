@@ -1,29 +1,14 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { 
-  Brain, 
-  Clock, 
-  Archive, 
-  Star, 
-  Trash2, 
-  Plus, 
-  Search, 
-  Settings, 
-  UserCircle, 
-  FolderGit2, 
-  Repeat, 
-  Lightbulb, 
-  Wallet,
-  Focus,
-  Layers,
-  Activity,
-  Minus,
-  Menu,
-  X,
-  ArrowUpRight
+  Brain, Clock, Archive, Star, Trash2, Plus, Search, Settings, 
+  UserCircle, FolderGit2, Repeat, Lightbulb, Wallet, Focus, Layers, 
+  Activity, Minus, Menu, X, ArrowUpRight, Send, Link2, Undo, Type, Image as ImageIcon
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import * as htmlToImage from "html-to-image";
+import ReactMarkdown from "react-markdown";
 
 type NodeData = {
   id: string;
@@ -72,8 +57,11 @@ export default function NeuralHubPage() {
   const [showGrid, setShowGrid] = useState(true);
   const [showConnections, setShowConnections] = useState(true);
   const [showDetails, setShowDetails] = useState(false);
-  const [isLinking, setIsLinking] = useState(false); // New Linking Mode
+  const [isLinking, setIsLinking] = useState<string | null>(null); // Node ID initiating link
+  const [linkTarget, setLinkTarget] = useState<{x: number, y: number} | null>(null); // Mouse pos for drawing line
+  const [notesPreview, setNotesPreview] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
   
   // Canvas State -> Default to 0,0 and 1 zoom before load
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -86,9 +74,11 @@ export default function NeuralHubPage() {
   const [draggedNode, setDraggedNode] = useState<{ id: string, type: 'main'|'child', parentId?: string } | null>(null);
   const [editingNode, setEditingNode] = useState<{ id: string, type: 'main'|'child', parentId?: string } | null>(null);
   const lastMousePosNode = useRef({ x: 0, y: 0 });
+  const dragOffsetRef = useRef({ dx: 0, dy: 0 }); // PERFORMANCE TRICK: For dragging without re-rending state.
   
   const [trashedNodes, setTrashedNodes] = useState<NodeData[]>([]);
   const [nodes, setNodes] = useState<NodeData[]>([]);
+  const [history, setHistory] = useState<NodeData[][]>([]);
 
   // Load from Local Storage on Mount
   useEffect(() => {
@@ -132,14 +122,49 @@ export default function NeuralHubPage() {
     localStorage.setItem("mindmap_view", JSON.stringify({ pan, zoom }));
   }, [pan, zoom, isMounted]);
 
-  // Global Keydown for Node Deletion
+  // Push history on changes (Throttled roughly)
+  const pushHistory = useCallback((newNodes: NodeData[]) => {
+    setHistory(prev => {
+      const newHistory = [...prev, newNodes];
+      if (newHistory.length > 20) newHistory.shift(); // Keep last 20 states
+      return newHistory;
+    });
+  }, []);
+
+  // Global Keydown for Shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't delete if user is typing
-      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
+      // Don't trigger if user is typing
+      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
+        // Allow Cmd+F for search anywhere though
+        if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+           e.preventDefault();
+           searchInputRef.current?.focus();
+        }
+        return;
+      }
       
+      // Cmd + F Search
+      if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+
+      // Cmd + Z Undo
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
+        e.preventDefault();
+        setHistory(prev => {
+          if (prev.length === 0) return prev;
+          const lastState = prev[prev.length - 1];
+          setNodes(lastState);
+          return prev.slice(0, prev.length - 1);
+        });
+      }
+
+      // Delete Node
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (selectedNode) {
+          pushHistory(nodes);
           setNodes(prev => {
             if (selectedNode.type === 'main') {
               const toTrash = prev.find(n => n.id === selectedNode.id);
@@ -161,7 +186,7 @@ export default function NeuralHubPage() {
     
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedNode]);
+  }, [selectedNode, nodes, pushHistory]);
 
   // --- Canvas Drag Handlers ---
   const handleCanvasPointerDown = (e: React.PointerEvent) => {
@@ -210,6 +235,7 @@ export default function NeuralHubPage() {
   };
 
   const handleUpdateNode = (id: string, updates: Partial<NodeData>) => {
+    pushHistory(nodes);
     setNodes(prev => prev.map(n => n.id === id ? { ...n, ...updates } : n));
   };
 
@@ -226,7 +252,8 @@ export default function NeuralHubPage() {
     setTimeout(() => notification.remove(), 3000);
   };
 
-  const handleNewNode = () => {
+  const handleNewNode = (initX?: number, initY?: number) => {
+    pushHistory(nodes);
     // Generate new node slightly away from center (0,0 is center in our setup)
     const angle = Math.random() * Math.PI * 2;
     const distance = 400 + Math.random() * 200;
@@ -235,8 +262,8 @@ export default function NeuralHubPage() {
       ...prev,
       {
         id: Math.random().toString(),
-        x: Math.cos(angle) * distance,
-        y: Math.sin(angle) * distance,
+        x: initX !== undefined ? initX : Math.cos(angle) * distance,
+        y: initY !== undefined ? initY : Math.sin(angle) * distance,
         title: "New Node",
         iconName: "Brain" as const,
         children: []
@@ -272,6 +299,22 @@ export default function NeuralHubPage() {
     e.stopPropagation();
     if (e.button !== 0) return; // Only left click
     
+    if (isLinking) {
+      // Connect organically
+      if (type === 'main' && isLinking !== id) {
+        pushHistory(nodes);
+        setNodes(prev => prev.map(n => {
+          if (n.id === isLinking) {
+            return { ...n, extraConnections: [...(n.extraConnections || []), id] };
+          }
+          return n;
+        }));
+      }
+      setIsLinking(null);
+      setLinkTarget(null);
+      return;
+    }
+
     // Select the node
     setSelectedNode({ id, type, parentId });
     if (type === 'main') setShowDetails(true);
@@ -281,36 +324,65 @@ export default function NeuralHubPage() {
 
     setDraggedNode({ id, type, parentId });
     lastMousePosNode.current = { x: e.clientX, y: e.clientY };
+    dragOffsetRef.current = { dx: 0, dy: 0 };
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
 
   const handleNodePointerMove = (e: React.PointerEvent) => {
+    if (isLinking && e.currentTarget.closest('.canvas-container')) {
+      const dx = (e.clientX - window.innerWidth / 2 - pan.x) / zoom;
+      const dy = (e.clientY - window.innerHeight / 2 - pan.y) / zoom;
+      setLinkTarget({ x: dx, y: dy });
+      return;
+    }
+
     if (!draggedNode) return;
     e.stopPropagation();
 
+    // DOM-based performance drag: We update via ref instead of setNodes for butter smooth 60fps
     const dx = (e.clientX - lastMousePosNode.current.x) / zoom;
     const dy = (e.clientY - lastMousePosNode.current.y) / zoom;
     lastMousePosNode.current = { x: e.clientX, y: e.clientY };
-
-    setNodes((prev) => prev.map(n => {
-      if (draggedNode.type === 'main' && n.id === draggedNode.id) {
-        return { ...n, x: n.x + dx, y: n.y + dy };
-      }
-      if (draggedNode.type === 'child' && n.id === draggedNode.parentId) {
-        return {
-          ...n,
-          children: n.children?.map(c => c.id === draggedNode.id ? { ...c, dx: c.dx + dx, dy: c.dy + dy } : c)
-        };
-      }
-      return n;
-    }));
+    
+    dragOffsetRef.current.dx += dx;
+    dragOffsetRef.current.dy += dy;
+    
+    const nodeEl = document.getElementById(`node-${draggedNode.id}`);
+    if (nodeEl) {
+      // Fast DOM manipulation
+      nodeEl.style.transform = `translate(${dragOffsetRef.current.dx}px, ${dragOffsetRef.current.dy}px)`;
+    }
   };
 
   const handleNodePointerUp = (e: React.PointerEvent) => {
     if (!draggedNode) return;
     e.stopPropagation();
     (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    
+    // Commit the drag offset to state
+    if (dragOffsetRef.current.dx !== 0 || dragOffsetRef.current.dy !== 0) {
+      pushHistory(nodes);
+      const { dx, dy } = dragOffsetRef.current;
+      setNodes((prev) => prev.map(n => {
+        if (draggedNode.type === 'main' && n.id === draggedNode.id) {
+          return { ...n, x: n.x + dx, y: n.y + dy };
+        }
+        if (draggedNode.type === 'child' && n.id === draggedNode.parentId) {
+          return {
+            ...n,
+            children: n.children?.map(c => c.id === draggedNode.id ? { ...c, dx: c.dx + dx, dy: c.dy + dy } : c)
+          };
+        }
+        return n;
+      }));
+    }
+    
+    // Reset temporary transforms
+    const nodeEl = document.getElementById(`node-${draggedNode.id}`);
+    if (nodeEl) nodeEl.style.transform = '';
+    
     setDraggedNode(null);
+    dragOffsetRef.current = { dx: 0, dy: 0 };
   };
 
   // --- Node Edit Handlers ---
@@ -337,17 +409,32 @@ export default function NeuralHubPage() {
 
   // --- Neural Features ---
   const handleNeuralReorganize = () => {
+    pushHistory(nodes);
     setNodes(prev => {
-      return prev.map((node, i) => {
-        // Simple radial layout for reorganization
-        const angle = (i / prev.length) * Math.PI * 2;
-        const radius = 400 + (i % 2 === 0 ? 100 : 0);
-        return {
-          ...node,
-          x: Math.cos(angle) * radius,
-          y: Math.sin(angle) * radius
-        };
+      // Basic Hierarchical Layout Algorithm
+      const resolvedNodes = [...prev];
+      const mainNodes = resolvedNodes.filter(n => n.children && n.children.length >= 0);
+      
+      const levelWidth = 350;
+      const levelHeight = 250;
+      
+      mainNodes.forEach((node, i) => {
+        const row = Math.floor(i / 3);
+        const col = i % 3;
+        node.x = (col - 1) * levelWidth;
+        node.y = row * levelHeight - (Math.floor(mainNodes.length/3) * levelHeight) / 2;
+        
+        // Arrange children in a small circle around the parent
+        if (node.children) {
+          node.children.forEach((child, j) => {
+            const angle = (j / node.children!.length) * Math.PI * 2;
+            const dist = 140;
+            child.dx = Math.cos(angle) * dist;
+            child.dy = Math.sin(angle) * dist;
+          });
+        }
       });
+      return resolvedNodes;
     });
   };
 
@@ -361,30 +448,101 @@ export default function NeuralHubPage() {
     return true;
   });
 
+  const handleExportImage = () => {
+    if (canvasRef.current) {
+      // Temporarily hide UI overlays (optional) before capture
+      const options = { backgroundColor: document.documentElement.classList.contains('dark') ? '#0a0a0a' : '#fafafa', pixelRatio: 2 };
+      htmlToImage.toPng(canvasRef.current, options)
+        .then(function (dataUrl) {
+          const a = document.createElement('a');
+          a.style.display = 'none';
+          a.href = dataUrl;
+          a.download = `neural-hub-export-${new Date().toISOString().split('T')[0]}.png`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        })
+        .catch(function (error) {
+          console.error('oops, something went wrong!', error);
+        });
+    }
+  };
+
   const handleExportMarkdown = () => {
-    let md = `# ${activeTab} - Neural Hub\n\n`;
+    let md = `# Neural Hub Export - ${new Date().toISOString().split('T')[0]}\n\n`;
+    
     nodes.forEach(node => {
-      md += `## ${node.title}\n`;
+      md += `## ${node.title}\n\n`;
       if (node.description) md += `${node.description}\n\n`;
+      if (node.tags && node.tags.length > 0) md += `**Tags:** ${node.tags.join(', ')}\n\n`;
+      
       if (node.children && node.children.length > 0) {
-        md += `### Sub-nodes\n`;
-        node.children.forEach(c => md += `- ${c.title}\n`);
+        md += `### Sub-nodes:\n`;
+        node.children.forEach(child => {
+          md += `- ${child.title}\n`;
+        });
+        md += '\n';
       }
-      md += `\n---\n\n`;
+      
+      if (node.extraConnections && node.extraConnections.length > 0) {
+        md += `### Connections:\n`;
+        node.extraConnections.forEach(connId => {
+          const target = nodes.find(n => n.id === connId);
+          if (target) md += `- Link to: ${target.title}\n`;
+        });
+        md += '\n';
+      }
+      md += '---\n\n';
     });
     
-    const blob = new Blob([md], { type: 'text/markdown' });
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
+    a.style.display = 'none';
     a.href = url;
     a.download = `neural-hub-export-${new Date().toISOString().split('T')[0]}.md`;
+    document.body.appendChild(a);
     a.click();
+    document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
 
   const currentSelectedNode = selectedNode?.type === 'main' 
     ? nodes.find(n => n.id === selectedNode.id) 
     : null;
+
+  // --- PersonalOS Integrations ---
+  const sendToPlanner = () => {
+    if (!currentSelectedNode) return;
+    
+    // Create Planner2 format task
+    const newTask = {
+      id: Date.now().toString(),
+      title: currentSelectedNode.title,
+      date: new Date().toISOString().split('T')[0],
+      duration: 30, // default
+      icon: "brain",
+      color: currentSelectedNode.color || "#54a0ff",
+      completed: false,
+      inbox: true,
+      notes: currentSelectedNode.description || "Sent from Neural Hub"
+    };
+
+    try {
+      const stored = localStorage.getItem("planner2-tasks");
+      let tasks = stored ? JSON.parse(stored) : [];
+      if (!Array.isArray(tasks)) tasks = [];
+      tasks.push(newTask);
+      localStorage.setItem("planner2-tasks", JSON.stringify(tasks));
+      
+      // Visual feedback
+      const notification = document.createElement("div");
+      notification.className = "fixed bottom-10 left-1/2 -translate-x-1/2 bg-neutral-900 text-white px-6 py-3 rounded-full shadow-2xl z-50 font-bold text-sm animate-pulse flex items-center gap-2";
+      notification.innerHTML = `<svg class="w-4 h-4 text-[#ffd21f]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Added to Planner Inbox`;
+      document.body.appendChild(notification);
+      setTimeout(() => notification.remove(), 3000);
+    } catch(e) {}
+  };
 
   if (!isMounted) {
     return (
@@ -425,14 +583,28 @@ export default function NeuralHubPage() {
               </section>
 
               <section>
-                <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400 block mb-2">Description / Notes</label>
-                <textarea 
-                  rows={6}
-                  placeholder="Add deep notes or brain dump here..."
-                  value={currentSelectedNode.description || ""}
-                  onChange={(e) => handleUpdateNode(currentSelectedNode.id, { description: e.target.value })}
-                  className="w-full bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-700 p-4 rounded-2xl text-sm leading-relaxed focus:ring-2 focus:ring-primary/20 outline-none resize-none"
-                />
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400 block">Description / Notes</label>
+                  <button 
+                    onClick={() => setNotesPreview(!notesPreview)}
+                    className="text-[10px] bg-neutral-100 dark:bg-neutral-800 px-2 py-1 rounded font-bold hover:bg-primary/20 hover:text-primary transition-colors flex items-center gap-1"
+                  >
+                    <Type className="h-3 w-3" /> {notesPreview ? 'Edit' : 'Preview'}
+                  </button>
+                </div>
+                {notesPreview ? (
+                  <div className="w-full bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-700 p-4 rounded-2xl text-sm leading-relaxed prose prose-sm dark:prose-invert max-w-none min-h-[150px] max-h-[300px] overflow-y-auto">
+                    {currentSelectedNode.description ? <ReactMarkdown>{currentSelectedNode.description}</ReactMarkdown> : <span className="opacity-50 italic">No notes added. Support markdown.</span>}
+                  </div>
+                ) : (
+                  <textarea 
+                    rows={6}
+                    placeholder="Add deep notes or brain dump here... (Markdown supported)"
+                    value={currentSelectedNode.description || ""}
+                    onChange={(e) => handleUpdateNode(currentSelectedNode.id, { description: e.target.value })}
+                    className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 p-4 rounded-2xl text-sm leading-relaxed focus:ring-2 focus:ring-primary/20 outline-none resize-none"
+                  />
+                )}
               </section>
 
                <section>
@@ -512,21 +684,30 @@ export default function NeuralHubPage() {
                 </div>
               </section>
 
-              <div className="pt-8 border-t border-neutral-100 dark:border-neutral-800 flex gap-4">
+              <div className="pt-8 border-t border-neutral-100 dark:border-neutral-800 flex flex-col gap-4">
                  <button 
-                  onClick={() => handleToggleFavorite(currentSelectedNode.id)}
-                  className={`flex-1 py-4 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 border transition-all ${currentSelectedNode.isFavorite ? 'bg-yellow-400/10 border-yellow-400/20 text-yellow-600' : 'bg-neutral-50 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 text-neutral-500'}`}
+                  onClick={sendToPlanner}
+                  className="w-full py-4 bg-black dark:bg-[#ffd21f] text-white dark:text-black rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-95 transition-all shadow-xl"
                  >
-                   <Star className={`h-4 w-4 ${currentSelectedNode.isFavorite ? 'fill-current' : ''}`} />
-                   {currentSelectedNode.isFavorite ? 'Favorited' : 'Favorite'}
+                   <Send className="h-4 w-4" />
+                   Send to Planner Inbox
                  </button>
-                 <button 
-                  onClick={() => handleToggleArchive(currentSelectedNode.id)}
-                  className="flex-1 py-4 bg-primary text-white rounded-2xl font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all"
-                 >
-                   <Archive className="h-4 w-4" />
-                   Archive Node
-                 </button>
+                 <div className="flex gap-4">
+                   <button 
+                    onClick={() => handleToggleFavorite(currentSelectedNode.id)}
+                    className={`flex-1 py-3 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 border transition-all ${currentSelectedNode.isFavorite ? 'bg-yellow-400/10 border-yellow-400/20 text-yellow-600' : 'bg-neutral-50 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 text-neutral-500'}`}
+                   >
+                     <Star className={`h-4 w-4 ${currentSelectedNode.isFavorite ? 'fill-current' : ''}`} />
+                     {currentSelectedNode.isFavorite ? 'Favorited' : 'Favorite'}
+                   </button>
+                   <button 
+                    onClick={() => handleToggleArchive(currentSelectedNode.id)}
+                    className="flex-1 py-3 bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 hover:bg-red-500 hover:text-white transition-all"
+                   >
+                     <Archive className="h-4 w-4" />
+                     Archive Node
+                   </button>
+                 </div>
               </div>
             </div>
           </motion.aside>
@@ -547,7 +728,7 @@ export default function NeuralHubPage() {
           </div>
           
           <button 
-            onClick={handleNewNode}
+            onClick={() => handleNewNode()}
             className="w-full bg-primary text-primary-foreground font-bold py-2.5 rounded-xl mb-8 hover:bg-primary/80 transition-colors active:scale-95 duration-150 flex items-center justify-center gap-2"
           >
             <Plus className="h-4 w-4" />
@@ -654,11 +835,19 @@ export default function NeuralHubPage() {
           <>
             {/* Canvas Background Logic */}
             <div 
-              className="relative w-full h-full overflow-hidden cursor-grab active:cursor-grabbing touch-none"
+              className="relative w-full h-full overflow-hidden cursor-grab active:cursor-grabbing touch-none canvas-container"
+              ref={canvasRef}
               onPointerDown={handleCanvasPointerDown}
               onPointerMove={handleCanvasPointerMove}
               onPointerUp={handleCanvasPointerUp}
               onWheel={handleWheel}
+              onDoubleClick={(e) => {
+                if ((e.target as HTMLElement).closest('.mind-node')) return;
+                const rect = e.currentTarget.getBoundingClientRect();
+                const dx = (e.clientX - rect.left - rect.width / 2 - pan.x) / zoom;
+                const dy = (e.clientY - rect.top - rect.height / 2 - pan.y) / zoom;
+                handleNewNode(dx, dy);
+              }}
             >
               {/* Subtle Grid dots */}
               {showGrid && (
@@ -708,7 +897,14 @@ export default function NeuralHubPage() {
 
                 {/* SVG Connections Container */}
                 {showConnections && (
-                  <svg className="absolute top-1/2 left-1/2 overflow-visible w-0 h-0 pointer-events-none text-primary opacity-60">
+                  <svg className="absolute top-1/2 left-1/2 pointer-events-none text-primary opacity-60" style={{ overflow: 'visible' }}>
+                    {/* Floating Link Target Line */}
+                    {isLinking && linkTarget && (
+                       <path 
+                         d={`M ${nodes.find(n => n.id === isLinking)?.x || 0} ${nodes.find(n => n.id === isLinking)?.y || 0} L ${linkTarget.x} ${linkTarget.y}`} 
+                         fill="none" stroke="currentColor" strokeWidth="2" strokeDasharray="5,5" className="animate-pulse"
+                       />
+                    )}
                     {filteredCanvasNodes.map(node => {
                       const midX = node.x / 2;
                       return (
@@ -785,6 +981,7 @@ export default function NeuralHubPage() {
                     return (
                       <div 
                         key={node.id} 
+                        id={`node-${node.id}`}
                         className="absolute z-10 mind-node -translate-x-1/2 -translate-y-1/2 cursor-move"
                         style={{ left: node.x, top: node.y }}
                         onPointerDown={(e) => handleNodePointerDown(e, node.id, 'main')}
@@ -815,6 +1012,13 @@ export default function NeuralHubPage() {
                               <span className="min-w-[4rem] text-center select-none" title="Double click to edit">{node.title}</span>
                             )}
                           </span>
+
+                          {/* Finans Widget Mock */}
+                          {(node.title.toLowerCase() === 'finans' || node.title.toLowerCase() === 'budget') && (
+                            <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg px-3 py-1 shadow-md text-[10px] font-black text-green-500 whitespace-nowrap flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> ₺12,450
+                            </div>
+                          )}
                           
                           {/* Floating ADD SUB NODE Button */}
                           {(selectedNode?.id === node.id && selectedNode?.type === 'main') && (
@@ -833,6 +1037,13 @@ export default function NeuralHubPage() {
                           {/* Floating ACTION Buttons */}
                           {(selectedNode?.id === node.id && selectedNode?.type === 'main') && (
                             <div className="absolute -left-3 -top-12 flex items-center gap-2">
+                               <button 
+                                onPointerDown={(e) => { e.stopPropagation(); setIsLinking(isLinking === node.id ? null : node.id); }}
+                                className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-lg transition-all border-2 border-white dark:border-neutral-900 ${isLinking === node.id ? 'bg-primary text-white scale-110 shadow-primary/30' : 'bg-white/80 dark:bg-neutral-800 text-neutral-400'}`}
+                                title="Link to another node"
+                              >
+                                <Link2 className="h-5 w-5" />
+                              </button>
                                <button 
                                 onPointerDown={(e) => { e.stopPropagation(); handleToggleFavorite(node.id); }}
                                 className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-lg transition-all border-2 border-white dark:border-neutral-900 ${node.isFavorite ? 'bg-yellow-400 text-white' : 'bg-white/80 dark:bg-neutral-800 text-neutral-400'}`}
@@ -970,6 +1181,13 @@ export default function NeuralHubPage() {
             title="Neural Reorganize"
           >
             <Repeat className="h-5 w-5" />
+          </button>
+          <button 
+            onClick={handleExportImage}
+            className="w-12 h-12 rounded-full backdrop-blur-xl bg-white/80 dark:bg-neutral-900/80 border border-neutral-200 dark:border-neutral-700/50 flex items-center justify-center text-primary hover:bg-primary hover:text-white transition-all active:scale-95 shadow-xl"
+            title="Export Visual Network"
+          >
+            <ImageIcon className="h-5 w-5" />
           </button>
           <button 
             onClick={handleExportMarkdown}

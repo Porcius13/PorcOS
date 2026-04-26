@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { NetworkNode as NodeData } from "./lib/network-db";
 import { cn } from "@/lib/utils";
 
@@ -12,28 +12,30 @@ interface NetworkNodeProps {
   onClick: (node: NodeData) => void;
   scale?: number;
   opacity?: number;
+  isHeatmap?: boolean;
 }
 
 const TYPE_CONFIG = {
   strategic: { 
     border: "border-amber-500/30", 
-    glow: "shadow-[0_0_30px_rgba(233,195,73,0.15)]",
+    glow: "rgba(233,195,73,0.3)",
     text: "text-amber-600 dark:text-amber-500"
   },
   personal: { 
     border: "border-emerald-500/30", 
-    glow: "shadow-[0_0_30px_rgba(102,221,139,0.15)]",
+    glow: "rgba(102,221,139,0.3)",
     text: "text-emerald-600 dark:text-emerald-500"
   },
   professional: { 
     border: "border-blue-500/30", 
-    glow: "shadow-[0_0_30px_rgba(171,199,255,0.15)]",
+    glow: "rgba(171,199,255,0.3)",
     text: "text-blue-600 dark:text-blue-500"
   }
 };
 
-export function NetworkNode({ node, isSelected, onDrag, onClick, scale = 1, opacity = 1 }: NetworkNodeProps) {
+export function NetworkNode({ node, isSelected, onDrag, onClick, scale = 1, opacity = 1, isHeatmap }: NetworkNodeProps) {
   const config = TYPE_CONFIG[node.type];
+  const affinity = node.affinity || 85;
 
   return (
     <motion.div
@@ -53,13 +55,34 @@ export function NetworkNode({ node, isSelected, onDrag, onClick, scale = 1, opac
       className="absolute z-20 cursor-grab active:cursor-grabbing flex flex-col items-center gap-3 p-2"
       style={{ left: 0, top: 0 }}
     >
+      {/* Neural Heatmap Aura */}
+      <AnimatePresence>
+        {isHeatmap && (
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ 
+              scale: [1, 1.4 + (affinity / 100) * 0.4, 1],
+              opacity: [0.2, 0.5, 0.2]
+            }}
+            exit={{ scale: 0.8, opacity: 0 }}
+            transition={{ 
+              duration: 3 - (affinity / 100) * 2, 
+              repeat: Infinity, 
+              ease: "easeInOut" 
+            }}
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 rounded-full blur-3xl pointer-events-none z-[-1]"
+            style={{ backgroundColor: config.glow }}
+          />
+        )}
+      </AnimatePresence>
+
       <div className={cn(
         "relative p-1 rounded-full border-2 transition-all duration-500",
         config.border,
         "bg-white/70 dark:bg-transparent backdrop-blur-xl dark:backdrop-blur-none",
         isSelected && "ring-4 ring-primary/20 scale-110"
       )}>
-        <div className="w-20 h-20 rounded-full overflow-hidden bg-white dark:bg-neutral-800 border border-black/5 dark:border-white/5">
+        <div className="w-20 h-20 rounded-full overflow-hidden bg-white dark:bg-neutral-800 border border-black/5 dark:border-white/5 shadow-2xl">
           {node.image ? (
             <img src={node.image} alt={node.name} className="w-full h-full object-cover" />
           ) : (

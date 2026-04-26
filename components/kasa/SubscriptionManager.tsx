@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Calendar, Plus, Trash2, Bell, RefreshCw, CreditCard } from 'lucide-react';
+import { Calendar, Plus, Trash2, Edit2, Bell, RefreshCw, CreditCard } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import { Subscription, Category } from './types';
@@ -17,13 +17,15 @@ interface SubscriptionManagerProps {
 export default function SubscriptionManager({ categories, lang }: SubscriptionManagerProps) {
     const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
     const [isAdding, setIsAdding] = useState(false);
+    const [editingSub, setEditingSub] = useState<Subscription | null>(null);
     const [newSub, setNewSub] = useState({
         name: '',
         amount: '',
         category_id: '',
         frequency: 'monthly' as const,
         next_date: '',
-        type: 'expense' as const
+        type: 'expense' as const,
+        total_installments: ''
     });
 
     const fetchSubscriptions = async () => {
@@ -38,18 +40,46 @@ export default function SubscriptionManager({ categories, lang }: SubscriptionMa
 
     const handleAdd = async () => {
         if (!newSub.name || !newSub.amount || !newSub.category_id || !newSub.next_date) return;
-        await apiFetch('/api/kasa/subscriptions', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                ...newSub,
-                amount: parseFloat(newSub.amount),
-                category_id: parseInt(newSub.category_id)
-            })
-        });
+        
+        const payload = {
+            ...newSub,
+            amount: parseFloat(newSub.amount),
+            category_id: parseInt(newSub.category_id),
+            total_installments: newSub.total_installments ? parseInt(newSub.total_installments) : null
+        };
+
+        if (editingSub) {
+            await apiFetch(`/api/kasa/subscriptions?id=${editingSub.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+        } else {
+            await apiFetch('/api/kasa/subscriptions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+        }
+
         setIsAdding(false);
-        setNewSub({ name: '', amount: '', category_id: '', frequency: 'monthly', next_date: '', type: 'expense' });
+        setEditingSub(null);
+        setNewSub({ name: '', amount: '', category_id: '', frequency: 'monthly', next_date: '', type: 'expense', total_installments: '' });
         fetchSubscriptions();
+    };
+
+    const startEditing = (sub: Subscription) => {
+        setEditingSub(sub);
+        setNewSub({
+            name: sub.name,
+            amount: sub.amount.toString(),
+            category_id: sub.category_id.toString(),
+            frequency: sub.frequency,
+            next_date: sub.next_date,
+            type: sub.type as any,
+            total_installments: sub.total_installments?.toString() || ''
+        });
+        setIsAdding(true);
     };
 
     const handleDelete = async (id: number) => {
@@ -103,6 +133,11 @@ export default function SubscriptionManager({ categories, lang }: SubscriptionMa
                                 </div>
                                 <div className="text-right">
                                     <p className="text-[10px] font-black text-foreground/20 uppercase tracking-widest">{sub.frequency.toUpperCase()}</p>
+                                    {sub.total_installments && (
+                                        <p className="text-[10px] font-black text-primary uppercase tracking-widest mt-1">
+                                            {sub.total_installments - (sub.remaining_installments || 0)} / {sub.total_installments} {lang === 'tr' ? 'AY' : 'MO'}
+                                        </p>
+                                    )}
                                 </div>
                             </div>
 
@@ -127,12 +162,20 @@ export default function SubscriptionManager({ categories, lang }: SubscriptionMa
                                         </p>
                                         <p className="text-[9px] font-black text-foreground/20 uppercase tracking-widest mt-2">{t('subscriptionCost', lang)}</p>
                                     </div>
-                                    <button 
-                                        onClick={() => handleDelete(sub.id!)}
-                                        className="p-3 text-foreground/10 hover:text-rose-500 hover:bg-rose-500/5 rounded-xl transition-all"
-                                    >
-                                        <Trash2 size={18} />
-                                    </button>
+                                    <div className="flex gap-2">
+                                        <button 
+                                            onClick={() => startEditing(sub)}
+                                            className="p-3 text-foreground/10 hover:text-primary hover:bg-primary/5 rounded-xl transition-all"
+                                        >
+                                            <Edit2 size={18} />
+                                        </button>
+                                        <button 
+                                            onClick={() => handleDelete(sub.id!)}
+                                            className="p-3 text-foreground/10 hover:text-rose-500 hover:bg-rose-500/5 rounded-xl transition-all"
+                                        >
+                                            <Trash2 size={18} />
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                             
@@ -158,7 +201,11 @@ export default function SubscriptionManager({ categories, lang }: SubscriptionMa
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
-                            onClick={() => setIsAdding(false)}
+                            onClick={() => {
+                                setIsAdding(false);
+                                setEditingSub(null);
+                                setNewSub({ name: '', amount: '', category_id: '', frequency: 'monthly', next_date: '', type: 'expense', total_installments: '' });
+                            }}
                             className="absolute inset-0 bg-black/80 backdrop-blur-md"
                         />
                         <motion.div
@@ -168,8 +215,17 @@ export default function SubscriptionManager({ categories, lang }: SubscriptionMa
                             className="relative w-full max-w-lg obsidian-card !p-12 border border-foreground/10"
                         >
                             <div className="flex justify-between items-center mb-10">
-                                <h3 className="text-2xl font-black text-foreground uppercase tracking-tight">{t('recurringProvisioning', lang)}</h3>
-                                <button onClick={() => setIsAdding(false)} className="text-foreground/20 hover:text-foreground transition-colors">
+                                <h3 className="text-2xl font-black text-foreground uppercase tracking-tight">
+                                    {editingSub ? t('updateSubscription', lang) : t('recurringProvisioning', lang)}
+                                </h3>
+                                <button 
+                                    onClick={() => {
+                                        setIsAdding(false);
+                                        setEditingSub(null);
+                                        setNewSub({ name: '', amount: '', category_id: '', frequency: 'monthly', next_date: '', type: 'expense', total_installments: '' });
+                                    }} 
+                                    className="text-foreground/20 hover:text-foreground transition-colors"
+                                >
                                     <Plus className="rotate-45" size={24} />
                                 </button>
                             </div>
@@ -209,17 +265,26 @@ export default function SubscriptionManager({ categories, lang }: SubscriptionMa
                                         <option value="yearly">{lang === 'tr' ? 'YILLIK' : 'YEARLY'}</option>
                                     </select>
                                 </div>
-                                <input
-                                    type="date"
-                                    className="w-full h-16 px-8 bg-foreground/5 border border-foreground/10 rounded-2xl font-bold text-foreground/40 focus:text-foreground focus:outline-none focus:border-primary/50 transition-all uppercase text-[10px] tracking-widest cursor-pointer"
-                                    value={newSub.next_date}
-                                    onChange={e => setNewSub({ ...newSub, next_date: e.target.value })}
-                                />
+                                <div className="grid grid-cols-2 gap-4">
+                                    <input
+                                        type="date"
+                                        className="w-full h-16 px-8 bg-foreground/5 border border-foreground/10 rounded-2xl font-bold text-foreground/40 focus:text-foreground focus:outline-none focus:border-primary/50 transition-all uppercase text-[10px] tracking-widest cursor-pointer"
+                                        value={newSub.next_date}
+                                        onChange={e => setNewSub({ ...newSub, next_date: e.target.value })}
+                                    />
+                                    <input
+                                        type="number"
+                                        placeholder={t('installmentCount', lang).toUpperCase()}
+                                        className="w-full h-16 px-8 bg-foreground/5 border border-foreground/10 rounded-2xl font-bold text-foreground placeholder:text-foreground/20 focus:outline-none focus:border-primary/50 transition-all uppercase text-[10px] tracking-widest"
+                                        value={newSub.total_installments}
+                                        onChange={e => setNewSub({ ...newSub, total_installments: e.target.value })}
+                                    />
+                                </div>
                                 <button
                                     onClick={handleAdd}
                                     className="w-full h-16 bg-primary text-black rounded-2xl font-black uppercase tracking-[0.2em] shadow-2xl shadow-primary/20 mt-4 hover:scale-[1.02] active:scale-95 transition-all"
                                 >
-                                    {t('authorizeSchedule', lang)}
+                                    {editingSub ? t('reAuthorizeSchedule', lang) : t('authorizeSchedule', lang)}
                                 </button>
                             </div>
                         </motion.div>

@@ -23,7 +23,11 @@ import {
   LayoutGrid,
   Compass,
   Cpu,
-  Network
+  Network,
+  ShoppingCart,
+  Map,
+  Menu,
+  X
 } from "lucide-react";
 
 type NavItem = {
@@ -71,6 +75,9 @@ const navCategories: NavCategory[] = [
       { href: "/lifestyle/magazine", label: "Magazine", icon: BookOpen },
       { href: "/lifestyle/curiosity", label: "Merak Lab", icon: Compass },
       { href: "/vibe-lab", label: "Vibe Lab", icon: Code2 },
+      { href: "/favduck", label: "FavDuck", icon: ShoppingCart },
+      { href: "/maps", label: "Gezi Haritası", icon: Map },
+      { href: "/nomad", label: "Nomad Günlüğü", icon: Compass },
     ],
   },
 ];
@@ -78,6 +85,7 @@ const navCategories: NavCategory[] = [
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({
     "Operasyonel": false,
     "Stratejik Zeka": true,
@@ -94,10 +102,85 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   };
 
+  if (pathname.startsWith("/nomad")) {
+    return <div className="nomad-theme w-full h-full min-h-screen bg-nomad-background">{children}</div>;
+  }
+
   return (
     <div className="flex min-h-screen bg-background text-foreground antialiased transition-colors duration-300">
+      {/* Mobile Overlay & Drawer */}
+      {mobileOpen && (
+        <div className="md:hidden fixed inset-0 z-50 flex">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
+          <aside className="relative flex w-64 h-full flex-col bg-card border-r border-border px-3 py-4 shadow-xl z-50">
+             <button onClick={() => setMobileOpen(false)} className="absolute right-4 top-4 p-2 rounded-full hover:bg-muted text-foreground/70 hover:text-primary transition-colors">
+                <X className="w-5 h-5"/>
+             </button>
+             <div className="mt-8 mb-4 px-3 text-lg font-black tracking-wider text-primary">PERSONAL OS</div>
+             <nav className="flex flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden pb-4">
+                <div className="flex flex-col gap-1 mb-2">
+                  <Link
+                    href="/"
+                    onClick={() => setMobileOpen(false)}
+                    className={`group flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold transition-colors ${
+                      pathname === "/"
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    }`}
+                  >
+                    <LayoutDashboard className="h-5 w-5 shrink-0" />
+                    <span>Dashboard</span>
+                  </Link>
+                </div>
+                {navCategories.map((category) => {
+                  const CategoryIcon = category.icon;
+                  const isOpen = openCategories[category.title];
+                  return (
+                    <div key={category.title} className="flex flex-col gap-1">
+                      <button
+                        onClick={() => toggleCategory(category.title)}
+                        className={`group flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm font-semibold transition-colors text-muted-foreground hover:bg-muted hover:text-foreground`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <CategoryIcon className="h-5 w-5 shrink-0" />
+                          <span>{category.title}</span>
+                        </div>
+                        <div className="shrink-0 text-neutral-400 dark:text-neutral-500">
+                          {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </div>
+                      </button>
+                      {isOpen && (
+                        <div className="ml-4 mt-1 flex flex-col gap-1 border-l border-border pl-2">
+                          {category.items.map((item) => {
+                            const Icon = item.icon;
+                            const active = item.href === "/" ? pathname === item.href : pathname.startsWith(item.href);
+                            return (
+                              <Link
+                                key={item.href}
+                                href={item.href}
+                                onClick={() => setMobileOpen(false)}
+                                className={`group flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${
+                                  active ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                                }`}
+                              >
+                                <Icon className="h-4 w-4 shrink-0" />
+                                <span className="whitespace-nowrap">{item.label}</span>
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+             </nav>
+          </aside>
+        </div>
+      )}
+
+      {/* Desktop Sidebar */}
       <aside
-        className={`sticky top-0 h-screen flex flex-col border-r border-border bg-card/80 px-3 py-4 shadow-sm backdrop-blur-md transition-[width] duration-300 ease-out z-40 ${
+        className={`sticky top-0 h-screen hidden md:flex flex-col border-r border-border bg-card/80 px-3 py-4 shadow-sm backdrop-blur-md transition-[width] duration-300 ease-out z-40 ${
           collapsed ? "w-20" : "w-64"
         }`}
       >
@@ -210,9 +293,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
       </aside>
 
-      <div className="flex min-h-screen flex-1 flex-col">
-        <header className="flex h-16 shrink-0 items-center justify-between px-4 sm:px-6 lg:px-8 border-b border-border bg-background/50 backdrop-blur-md">
-          <div className="flex-1 max-w-2xl">
+      <div className="flex min-h-screen flex-1 flex-col min-w-0 overflow-hidden w-full">
+        <header className="flex h-16 shrink-0 items-center justify-between px-4 sm:px-6 lg:px-8 border-b border-border bg-background/50 backdrop-blur-md overflow-hidden">
+          <div className="flex items-center gap-2 flex-shrink-0 md:hidden mr-2">
+            <button
+              onClick={() => setMobileOpen(true)}
+              className="p-2 -ml-2 rounded-full hover:bg-muted transition-colors text-muted-foreground hover:text-primary"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="flex-1 max-w-2xl min-w-0">
             <GlobalSearch />
           </div>
           <div className="flex items-center gap-4">
@@ -226,7 +317,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </Link>
           </div>
         </header>
-        <main className="flex-1 p-4 sm:p-6 lg:p-8">
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 min-w-0 overflow-hidden">
           {children}
         </main>
       </div>

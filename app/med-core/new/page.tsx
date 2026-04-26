@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Book, Upload, FileUp, Loader2, Plus, Sparkles, Heart, Activity } from "lucide-react";
@@ -14,7 +14,7 @@ import { medDb } from "@/lib/med-db";
 
 type MedCoreTab = "research" | "clinical" | "medvibe";
 
-export default function MedCoreNewPage() {
+function MedCoreNewContent() {
   const [activeTab, setActiveTab] = useState<MedCoreTab>("clinical");
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -101,6 +101,14 @@ export default function MedCoreNewPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function MedCoreNewPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen bg-terminal-bg items-center justify-center"><Loader2 className="animate-spin text-terminal-accent" /></div>}>
+      <MedCoreNewContent />
+    </Suspense>
   );
 }
 

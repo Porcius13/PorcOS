@@ -26,13 +26,14 @@ export function smartSanitize(html: string): string {
 
     const keptStyles: string[] = [];
 
-    // Keep Bold intent
-    if (styleMap["font-weight"] === "700" || styleMap["font-weight"] === "bold") {
+    // Keep Bold intent (Expanded range for more robust capture)
+    const fw = styleMap["font-weight"];
+    if (fw === "bold" || parseInt(fw) >= 600) {
       keptStyles.push("font-weight: bold");
     }
 
     // Keep Italic intent
-    if (styleMap["font-style"] === "italic") {
+    if (styleMap["font-style"] === "italic" || styleMap["font-style"] === "oblique") {
       keptStyles.push("font-style: italic");
     }
 
@@ -41,9 +42,12 @@ export function smartSanitize(html: string): string {
       keptStyles.push("text-decoration: underline");
     }
 
+    // Keep Font Size (NEW: User requested size preservation)
+    if (styleMap["font-size"]) {
+      keptStyles.push(`font-size: ${styleMap["font-size"]}`);
+    }
+
     // Keep Color intent but NORMALIZE IT
-    // If it's pure black or white, we ignore it to let the theme handle it.
-    // Otherwise, we keep it but maybe wrap in a theme-safe way if it's a known medical color.
     if (styleMap["color"]) {
       const color = styleMap["color"];
       if (!isNeutralColor(color)) {

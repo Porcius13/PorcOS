@@ -1,15 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ImageUpload } from "@/components/image-upload";
 import { MarkdownEditor } from "@/components/markdown-editor";
 
 type VibeView = "logs" | "zine";
 
-export default function VibeLabNewPage() {
+function VibeLabNewContent() {
   const [view, setView] = useState<VibeView>("logs");
   const searchParams = useSearchParams();
   const editId = searchParams.get("id");
@@ -77,6 +77,14 @@ export default function VibeLabNewPage() {
         {view === "logs" ? <TechnicalLogs editId={editId} /> : <MagazineView editId={editId} />}
       </div>
     </div>
+  );
+}
+
+export default function VibeLabNewPage() {
+  return (
+    <Suspense fallback={<div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin text-neutral-400" /></div>}>
+      <VibeLabNewContent />
+    </Suspense>
   );
 }
 

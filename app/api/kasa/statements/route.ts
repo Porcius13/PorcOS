@@ -3,7 +3,7 @@ import db from "@/lib/kasa-db";
 
 export async function GET() {
   try {
-    const logs = db.prepare("SELECT * FROM statement_logs ORDER BY created_at DESC LIMIT 50").all();
+    const logs = (await db.execute("SELECT * FROM statement_logs ORDER BY created_at DESC LIMIT 50")).rows;
     return NextResponse.json(logs);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -13,9 +13,7 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const { title, bank_name, period } = await req.json();
-    const result = db.prepare(
-      "INSERT INTO statement_logs (title, bank_name, period) VALUES (?, ?, ?)"
-    ).run(title, bank_name, period);
+    const result = (await db.execute({ sql: "INSERT INTO statement_logs (title, bank_name, period) VALUES (?, ?, ?)", args: [title, bank_name, period] }));
     
     return NextResponse.json({ success: true, id: result.lastInsertRowid });
   } catch (error: any) {
@@ -28,7 +26,7 @@ export async function DELETE(req: Request) {
     const id = searchParams.get('id');
     if (!id) throw new Error("ID required");
 
-    db.prepare("DELETE FROM statement_logs WHERE id = ?").run(id);
+    (await db.execute({ sql: "DELETE FROM statement_logs WHERE id = ?", args: [id] }));
     return NextResponse.json({ success: true });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

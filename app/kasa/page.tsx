@@ -302,9 +302,9 @@ export default function KasaPage() {
 
       <div className="relative z-10 flex flex-col min-h-screen w-full">
         {/* Modern Header - Obsidian Ledger Style */}
-        <header className="px-12 py-12 flex justify-between items-center w-full max-w-[1440px] mx-auto">
-          <div className="flex items-center gap-16">
-            <h1 className="text-2xl font-black tracking-[0.4em] text-primary leading-none">KASA</h1>
+        <header className="px-4 py-6 md:px-12 md:py-12 flex flex-col md:flex-row justify-between items-center gap-6 md:gap-0 w-full max-w-[1440px] mx-auto">
+          <div className="flex flex-col md:flex-row items-center gap-4 md:gap-16 w-full md:w-auto">
+            <h1 className="text-2xl font-black tracking-[0.4em] text-primary leading-none w-full text-center md:text-left">KASA</h1>
             <nav className="hidden lg:flex items-center gap-10">
               {[
                 { label: t('home', lang), id: 'dashboard' },
@@ -381,7 +381,7 @@ export default function KasaPage() {
         </header>
 
         {/* Main Content Area */}
-        <main className="flex-1 w-full max-w-[1440px] mx-auto px-12 pb-40">
+        <main className="flex-1 w-full max-w-[1440px] mx-auto px-4 md:px-12 pb-40 overflow-x-hidden">
           <AnimatePresence mode="wait">
             {activeTab === 'dashboard' && (
               <Dashboard
@@ -503,7 +503,7 @@ export default function KasaPage() {
             )}
             
             {activeTab === 'settings' && (
-               <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
+               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-8">
                   <MenuButton icon={<ShieldCheck />} label={t('insights', lang)} onClick={() => setActiveTab('insights' as any)} color="bg-primary/10 text-primary border border-primary/20" />
                   <MenuButton icon={<FileText />} label={t('docs', lang)} onClick={() => setActiveTab('docs')} color="bg-foreground/5 text-foreground border border-foreground/10" />
                   <MenuButton icon={<CreditCard />} label={t('creditCardManager', lang)} onClick={() => setActiveTab('cards')} color="bg-foreground/5 text-foreground border border-foreground/10" />
@@ -521,8 +521,8 @@ export default function KasaPage() {
         </main>
 
         {/* Floating Nav Pill - Obsidian Style - Center Fixed */}
-        <div className="fixed bottom-12 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-8 duration-1000">
-          <nav className="glass py-4 px-10 flex items-center gap-6 shadow-[0_32px_64px_-12px_rgba(0,0,0,0.8)] dark:shadow-[0_32px_64px_-12px_rgba(0,0,0,1)] bg-card/60 backdrop-blur-3xl border border-foreground/10 rounded-full ring-1 ring-foreground/5">
+        <div className="fixed bottom-4 md:bottom-12 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-8 duration-1000 w-[95vw] sm:w-auto">
+          <nav className="glass py-3 px-4 md:py-4 md:px-10 flex items-center justify-between sm:justify-center gap-2 md:gap-6 shadow-[0_32px_64px_-12px_rgba(0,0,0,0.8)] dark:shadow-[0_32px_64px_-12px_rgba(0,0,0,1)] bg-card/60 backdrop-blur-3xl border border-foreground/10 rounded-[2rem] sm:rounded-full ring-1 ring-foreground/5 overflow-x-auto no-scrollbar">
             <NavItem
               active={activeTab === 'dashboard'}
               onClick={() => setActiveTab('dashboard')}
@@ -566,12 +566,12 @@ export default function KasaPage() {
 
       </div>
 
-      {/* New Transaction FAB - Desktop Bottom Right */}
+      {/* New Transaction FAB - Desktop Bottom Right, Mobile Bottom Right above Nav */}
       <button
         onClick={() => setIsAddModalOpen(true)}
-        className="fixed right-12 bottom-12 w-20 h-20 rounded-[2.5rem] bg-card hover:bg-primary transition-all flex items-center justify-center group border border-foreground/10 hover:border-primary shadow-2xl z-40"
+        className="fixed right-4 bottom-24 md:right-12 md:bottom-12 w-14 h-14 md:w-20 md:h-20 rounded-2xl md:rounded-[2.5rem] bg-card hover:bg-primary transition-all flex items-center justify-center group border border-foreground/10 hover:border-primary shadow-2xl z-40"
       >
-        <Plus size={32} className="text-primary group-hover:text-black transition-all group-hover:rotate-90" />
+        <Plus size={24} className="text-primary group-hover:text-black transition-all group-hover:rotate-90 md:w-8 md:h-8" />
       </button>
 
       {/* Transaction Modal & Voice Interface */}

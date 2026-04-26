@@ -4,15 +4,18 @@ import { useEffect, useState, useRef } from "react";
 import { CheckSquare, Clock, Plus, X as CloseIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type Task = {
+type Task2 = {
     id: string;
     title: string;
     date: string;
-    startTime: string;
-    endTime: string;
-    duration: string;
+    startTime?: string;
+    duration: number;
+    icon: string;
     color: string;
     completed: boolean;
+    inbox: boolean;
+    notes?: string;
+    isAllDay?: boolean;
 };
 
 const getTodayYMD = () => {
@@ -22,22 +25,21 @@ const getTodayYMD = () => {
 };
 
 export function DailyTasksWidget() {
-    const [tasks, setTasks] = useState<Task[]>([]);
+    const [tasks, setTasks] = useState<Task2[]>([]);
     const [todayCompleted, setTodayCompleted] = useState(0);
     const [isAdding, setIsAdding] = useState(false);
     const [newTaskTitle, setNewTaskTitle] = useState("");
     const inputRef = useRef<HTMLInputElement>(null);
 
     const loadTasks = () => {
-        const stored = localStorage.getItem("planner-tasks");
+        const stored = localStorage.getItem("planner2-tasks");
         if (stored) {
             try {
-                const parsed: Task[] = JSON.parse(stored);
+                const parsed: Task2[] = JSON.parse(stored);
                 if (Array.isArray(parsed)) {
                     const today = getTodayYMD();
-                    const todayTasks = parsed.filter((t) => t.date === today);
-                    // Sort tasks by time roughly based on parsing AM/PM, but string sort usually fails for 12hr time.
-                    // For simplicity, we just use the order they were added or keep them as is.
+                    const todayTasks = parsed.filter((t) => t.date === today && !t.inbox);
+                    todayTasks.sort((a, b) => (a.startTime || "00:00").localeCompare(b.startTime || "00:00"));
                     setTasks(todayTasks);
                     setTodayCompleted(todayTasks.filter((t) => t.completed).length);
                 }
@@ -52,14 +54,14 @@ export function DailyTasksWidget() {
 
         const handleUpdate = () => loadTasks();
         const handleStorage = (e: StorageEvent) => {
-            if (e.key === "planner-tasks") loadTasks();
+            if (e.key === "planner2-tasks") loadTasks();
         };
 
-        window.addEventListener("planner-tasks-updated", handleUpdate);
+        window.addEventListener("planner2-tasks-updated", handleUpdate);
         window.addEventListener("storage", handleStorage);
 
         return () => {
-            window.removeEventListener("planner-tasks-updated", handleUpdate);
+            window.removeEventListener("planner2-tasks-updated", handleUpdate);
             window.removeEventListener("storage", handleStorage);
         };
     }, []);
@@ -72,33 +74,28 @@ export function DailyTasksWidget() {
         if (!newTaskTitle.trim()) return;
 
         const now = new Date();
-        const startH = now.getHours();
+        const startH = String(now.getHours()).padStart(2, '0');
         const startM = "00";
-        const ampm = startH >= 12 ? "PM" : "AM";
-        const h12 = startH % 12 || 12;
-        const startTime = `${h12}:${startM} ${ampm}`;
-        
-        const h12_end = (startH + 1) % 12 || 12;
-        const ampm_end = (startH + 1) >= 12 ? "PM" : "AM";
-        const endTime = `${h12_end}:${startM} ${ampm_end}`;
+        const startTime = `${startH}:${startM}`;
 
-        const newTask: Task = {
-            id: crypto.randomUUID(),
+        const newTask: Task2 = {
+            id: Date.now().toString(),
             title: newTaskTitle.trim(),
             date: getTodayYMD(),
             startTime,
-            endTime,
-            duration: "1h 00m",
-            color: "bg-emerald-500", // Default Active Color for Quick Add
+            duration: 60,
+            icon: "laptop",
+            color: "#10b981", // Emerald default
             completed: false,
+            inbox: false,
         };
 
-        const stored = localStorage.getItem("planner-tasks");
-        const allTasks = stored ? JSON.parse(stored) : [];
+        const stored = localStorage.getItem("planner2-tasks");
+        const allTasks: Task2[] = stored ? JSON.parse(stored) : [];
         const updated = [...allTasks, newTask];
         
-        localStorage.setItem("planner-tasks", JSON.stringify(updated));
-        window.dispatchEvent(new CustomEvent("planner-tasks-updated"));
+        localStorage.setItem("planner2-tasks", JSON.stringify(updated));
+        window.dispatchEvent(new CustomEvent("planner2-tasks-updated"));
         
         setNewTaskTitle("");
         setIsAdding(false);
@@ -106,18 +103,18 @@ export function DailyTasksWidget() {
     };
 
     const toggleTask = (taskId: string) => {
-        const stored = localStorage.getItem("planner-tasks");
+        const stored = localStorage.getItem("planner2-tasks");
         if (stored) {
             try {
-                const allTasks: Task[] = JSON.parse(stored);
+                const allTasks: Task2[] = JSON.parse(stored);
                 const updatedTasks = allTasks.map(t => 
                     t.id === taskId ? { ...t, completed: !t.completed } : t
                 );
                 
-                localStorage.setItem("planner-tasks", JSON.stringify(updatedTasks));
+                localStorage.setItem("planner2-tasks", JSON.stringify(updatedTasks));
                 
                 // Dispatch event for other components to sync
-                window.dispatchEvent(new CustomEvent("planner-tasks-updated"));
+                window.dispatchEvent(new CustomEvent("planner2-tasks-updated"));
                 
                 // Local update
                 loadTasks();
@@ -206,7 +203,7 @@ export function DailyTasksWidget() {
                             )}
                         >
                             {/* Color Bar */}
-                            <div className={cn("w-1.5 h-10 rounded-full shrink-0", task.color)} />
+                            <div className="w-1.5 h-10 rounded-full shrink-0" style={{ backgroundColor: task.color }} />
                             
                             <div className="flex-1 min-w-0">
                                 <h4 className={cn(
@@ -217,7 +214,14 @@ export function DailyTasksWidget() {
                                 </h4>
                                 <div className="flex items-center gap-1.5 text-[10px] font-medium text-neutral-500 mt-1">
                                     <Clock className="w-3 h-3" />
-                                    <span>{task.startTime} - {task.endTime}</span>
+                                    <span>
+                                        {task.isAllDay ? "Tüm Gün" : (task.startTime ? (() => {
+                                            const [h, m] = task.startTime?.split(':') || ["0", "0"];
+                                            const start = new Date(2000, 0, 1, parseInt(h), parseInt(m));
+                                            const end = new Date(start.getTime() + task.duration * 60000);
+                                            return `${task.startTime} - ${end.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
+                                        })() : `${task.duration} dk`)}
+                                    </span>
                                 </div>
                             </div>
 

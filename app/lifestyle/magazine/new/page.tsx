@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
 import { ArrowLeft, Book, Upload, FileUp, Loader2, Plus } from "lucide-react";
 import { magazineDb } from "@/components/lifestyle/lib/magazine-db";
 import { useRouter, useSearchParams } from "next/navigation";
 
-export default function MagazineNewPage() {
+function MagazineNewContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const editId = searchParams.get("id");
@@ -262,5 +262,13 @@ export default function MagazineNewPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function MagazineNewPage() {
+  return (
+    <Suspense fallback={<div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin text-neutral-400" /></div>}>
+      <MagazineNewContent />
+    </Suspense>
   );
 }

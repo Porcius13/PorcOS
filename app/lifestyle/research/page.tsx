@@ -3,9 +3,11 @@
 import React, { useState, useMemo } from "react";
 import Link from "next/link";
 import { ResearchCard } from "@/components/lifestyle/ResearchCard";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { NewResearchModal } from "@/components/lifestyle/NewResearchModal";
 import { ZenMode } from "@/components/lifestyle/ZenMode";
 import { researchDb, ResearchData } from "@/components/lifestyle/lib/research-db";
+import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, ArrowRight, Menu, Search, Plus, SlidersHorizontal, LayoutGrid, List, Lock, Star, Settings, User, Trash2, Pencil, Sparkles, Zap } from "lucide-react";
 
 export default function ResearchHubPage() {
@@ -124,39 +126,53 @@ export default function ResearchHubPage() {
         onClose={() => setSelectedResearch(null)} 
       />
 
-      <main className="pt-12 pb-32 px-6 sm:px-12 max-w-[1600px] mx-auto relative z-10">
+      <main className="pt-8 pb-32 px-4 sm:px-8 max-w-[1400px] mx-auto relative z-10 min-w-0 overflow-hidden">
         
         {/* Minimal Intelligence Action Row */}
-        <div className="flex flex-col lg:flex-row items-center justify-between gap-8 mb-16">
-          {/* Dynamic Categories */}
-          <div className="flex flex-wrap items-center gap-2">
-            {dynamicCategories.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setActiveCategory(cat)}
-                className={`px-6 py-2.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all ${
-                  activeCategory === cat 
-                    ? "bg-amber-500 text-black shadow-lg shadow-amber-500/20 scale-105" 
-                    : "bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-white/5 text-neutral-500 dark:text-neutral-400 hover:text-white hover:bg-black dark:hover:bg-neutral-800"
-                }`}
-              >
-                {cat === "Golden Words" ? (
-                  <span className="flex items-center gap-2">
-                    <Star className="w-3.5 h-3.5 text-inherit" />
-                    Golden Words
-                  </span>
-                ) : cat}
-              </button>
-            ))}
+        <div className="flex flex-col xl:flex-row items-center justify-between gap-6 mb-16">
+          {/* Dynamic Categories Slider */}
+          <div className="flex-1 min-w-0 w-full overflow-hidden relative group">
+            <motion.div 
+              className="flex items-center gap-3 overflow-x-auto pb-4 no-scrollbar scroll-smooth"
+              initial={{ x: 20, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              transition={{ duration: 0.5, ease: "easeOut" }}
+            >
+              {dynamicCategories.map((cat, idx) => (
+                <motion.button
+                  key={cat}
+                  initial={{ x: 20, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={{ delay: idx * 0.05 }}
+                  onClick={() => setActiveCategory(cat)}
+                  className={`px-6 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap shrink-0 border ${
+                    activeCategory === cat 
+                      ? "bg-amber-500 text-black border-amber-500 shadow-xl shadow-amber-500/20 scale-105" 
+                      : "bg-white dark:bg-neutral-900 border-neutral-200 dark:border-white/5 text-neutral-500 dark:text-neutral-400 hover:border-amber-500/50 hover:text-amber-500"
+                  }`}
+                >
+                  {cat === "Golden Words" ? (
+                    <span className="flex items-center gap-2">
+                      <Star className="w-4 h-4 text-inherit" />
+                      Golden Words
+                    </span>
+                  ) : cat}
+                </motion.button>
+              ))}
+            </motion.div>
+            
+            {/* Fade edge indicators for scroll */}
+            <div className="absolute right-0 top-0 bottom-4 w-12 bg-gradient-to-l from-[#f3f4f6] dark:from-neutral-950 to-transparent pointer-events-none" />
           </div>
 
-          <div className="flex items-center gap-3 w-full lg:w-auto">
-            <div className="relative flex-1 lg:flex-none">
+          <div className="flex items-center gap-3 w-full xl:w-auto shrink-0 justify-end">
+            <ThemeToggle />
+            <div className="relative flex-1 xl:flex-none">
               <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-neutral-400 w-4 h-4" />
               <input 
                 type="text" 
                 placeholder="PROBE DATABASE..." 
-                className="pl-12 pr-6 py-4 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-white/5 rounded-full text-[10px] font-black uppercase tracking-widest focus:ring-4 focus:ring-amber-500/10 w-full lg:w-[320px] transition-all shadow-xl shadow-black/5 outline-none"
+                className="pl-12 pr-6 py-4 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-white/5 rounded-full text-[10px] font-black uppercase tracking-widest focus:ring-4 focus:ring-amber-500/10 w-full xl:w-[280px] transition-all shadow-xl shadow-black/5 outline-none"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -171,7 +187,7 @@ export default function ResearchHubPage() {
         </div>
 
         {/* Pinterest Style Masonry Grid */}
-        <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-8 space-y-8">
+        <div className="w-full columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-8 space-y-8">
             {filteredItems.map((item) => (
                 <div 
                     key={item.id} 

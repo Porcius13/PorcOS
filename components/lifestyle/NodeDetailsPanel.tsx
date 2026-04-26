@@ -14,9 +14,10 @@ interface NodeDetailsPanelProps {
   onClose: () => void;
   onEdit: (node: NodeData) => void;
   onConnect: (node: NodeData) => void;
+  onDelete: (id: string) => void;
 }
 
-export function NodeDetailsPanel({ node, onClose, onEdit, onConnect }: NodeDetailsPanelProps) {
+export function NodeDetailsPanel({ node, onClose, onEdit, onConnect, onDelete }: NodeDetailsPanelProps) {
   if (!node) return null;
 
   return (
@@ -129,6 +130,13 @@ export function NodeDetailsPanel({ node, onClose, onEdit, onConnect }: NodeDetai
           >
             <Edit3 className="w-4 h-4" />
             Edit Intelligence
+          </button>
+          <button 
+            onClick={() => onDelete(node.id)}
+            className="w-full py-5 bg-error/10 border border-error/20 text-error font-headline font-black text-[10px] uppercase tracking-[0.2em] rounded-2xl flex items-center justify-center gap-3 hover:bg-error/20 transition-all font-bold group"
+          >
+            <X className="w-4 h-4 group-hover:rotate-90 transition-transform" />
+            Decommission Node
           </button>
         </div>
       </motion.div>
